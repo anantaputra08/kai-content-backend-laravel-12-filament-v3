@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\ContentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
@@ -26,3 +27,4 @@ Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::middleware('auth:sanctum')->get('/profile', [UserController::class, 'profile']);
 
 Route::apiResource('categories', CategoryController::class);
+Route::apiResource('contents', ContentController::class);

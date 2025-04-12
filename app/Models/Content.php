@@ -11,10 +11,8 @@ class Content extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'name',
         'title',
         'description',
-        'category_id',
         'file_path',
         'status',
         'view_count',
@@ -23,7 +21,6 @@ class Content extends Model
     ];
 
     protected $casts = [
-        // 'categories' => 'array',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',

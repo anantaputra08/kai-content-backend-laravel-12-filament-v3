@@ -12,6 +12,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Facades\Storage;
 
 class ContentResource extends Resource
 {
@@ -79,6 +80,13 @@ class ContentResource extends Resource
                     ->numeric()
                     ->default(0),
             ]);
+    }
+
+    public static function beforeForceDeleted($record): void
+    {
+        if ($record->file_path && Storage::disk('public')->exists($record->file_path)) {
+            Storage::disk('public')->delete($record->file_path);
+        }
     }
 
     public static function table(Table $table): Table
