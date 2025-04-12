@@ -24,4 +24,12 @@ class Category extends Model
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
     ];
+
+    /**
+     * Relationship to contents
+     */
+    public function contents()
+    {
+        return $this->hasMany(Content::class);
+    }
 }
