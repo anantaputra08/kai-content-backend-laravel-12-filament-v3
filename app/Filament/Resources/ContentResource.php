@@ -86,14 +86,21 @@ class ContentResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('title')
-                    ->searchable(),
+                    ->searchable()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('categories_list')
                     ->label('Kategori')
                     ->getStateUsing(fn($record) => $record->categories->pluck('name')->join(', '))
-                    ->wrap(), // Supaya nggak terlalu panjang ke samping
+                    ->wrap(),
                 Tables\Columns\ImageColumn::make('file_path')
                     ->label('Video File'),
-                Tables\Columns\TextColumn::make('status'),
+                Tables\Columns\TextColumn::make('status')
+                    ->color(fn($state) => match ($state) {
+                        'pending' => 'warning',
+                        'published' => 'success',
+                        'rejected' => 'danger',
+                    })
+                    ->badge(),
                 Tables\Columns\TextColumn::make('view_count')
                     ->numeric()
                     ->sortable(),

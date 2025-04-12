@@ -26,6 +26,7 @@ class DatabaseSeeder extends Seeder
             'email' => 'admin@example.com',
             'password' => bcrypt('1234'),
             'role' => 'admin',
+            'profile_picture' => 'profile_pictures/pngtree-flat-fingerprint-png-download-image_2286249.jpg',
         ]);
 
         $this->call([

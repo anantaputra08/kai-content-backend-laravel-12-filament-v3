@@ -36,4 +36,6 @@ class Content extends Model
     {
         return $this->belongsToMany(Category::class);
     }
+
+    
 }
