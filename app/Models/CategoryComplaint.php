@@ -10,13 +10,22 @@ class CategoryComplaint extends Model
 {
     use HasFactory, SoftDeletes;
 
+    /*
+     * Kolom yang dapat diisi secara massal
+     * name: Nama kategori keluhan
+     * description: Deskripsi kategori keluhan
+     */
     protected $fillable = [
         'name',
+        'description',
     ];
 
-    // Relasi ke complaints
-    // public function complaints()
-    // {
-    //     return $this->hasMany(Complaint::class, 'categoryComplain_id');
-    // }
+    /*
+     * Menggunakan 'id' sebagai primary key
+     * untuk menghubungkan dengan tabel complaints
+     */
+    public function complaints()
+    {
+        return $this->hasMany(Complaint::class, 'category_complaint_id');
+    }
 }

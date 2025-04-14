@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\ComplaintController;
 use App\Http\Controllers\ContentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -34,4 +35,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('feedbacks/check', [FeedbackController::class, 'checkUserFeedback']);
     Route::apiResource('feedbacks', FeedbackController::class);
+
+    Route::apiResource('complaints', ComplaintController::class);
 });
