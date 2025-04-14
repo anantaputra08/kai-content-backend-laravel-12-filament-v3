@@ -5,6 +5,7 @@ use App\Http\Controllers\ContentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\UserController;
 
 /*
@@ -26,5 +27,11 @@ Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 
 Route::middleware('auth:sanctum')->get('/profile', [UserController::class, 'profile']);
 
-Route::apiResource('categories', CategoryController::class);
-Route::apiResource('contents', ContentController::class);
+Route::middleware('auth:sanctum')->group(function () {
+    Route::apiResource('categories', CategoryController::class);
+    
+    Route::apiResource('contents', ContentController::class);
+
+    Route::get('feedbacks/check', [FeedbackController::class, 'checkUserFeedback']);
+    Route::apiResource('feedbacks', FeedbackController::class);
+});

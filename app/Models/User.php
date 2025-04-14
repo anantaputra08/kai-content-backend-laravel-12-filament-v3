@@ -51,4 +51,9 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    public function contentInteractions()
+    {
+        return $this->hasMany(ContentUserInteraction::class);
+    }
 }
