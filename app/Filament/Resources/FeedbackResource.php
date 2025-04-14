@@ -20,6 +20,8 @@ class FeedbackResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-s-star';
 
+    protected static ?int $navigationSort = 4;
+
     public static function form(Form $form): Form
     {
         return $form
