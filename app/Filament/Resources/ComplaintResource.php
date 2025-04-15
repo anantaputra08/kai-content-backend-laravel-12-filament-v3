@@ -17,7 +17,7 @@ class ComplaintResource extends Resource
 {
     protected static ?string $model = Complaint::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'hugeicons-complaint';
 
     protected static ?string $navigationGroup = 'Complaint Management';
 
