@@ -37,6 +37,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('feedbacks/check', [FeedbackController::class, 'checkUserFeedback']);
     Route::apiResource('feedbacks', FeedbackController::class);
 
+    Route::get('complaints/my-complaints', [ComplaintController::class, 'myComplaints']);
     Route::apiResource('complaints', ComplaintController::class);
 
     Route::apiResource('favorites', FavoriteController::class)->only(['index', 'store', 'destroy']);

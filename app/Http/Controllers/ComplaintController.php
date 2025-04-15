@@ -14,7 +14,7 @@ class ComplaintController extends Controller
     public function index()
     {
         $complaints = Complaint::with(['user', 'categoryComplaint', 'assignedTo'])
-            ->withTrashed() // Sertakan data yang soft deleted
+            // ->withTrashed() // Sertakan data yang soft deleted
             ->get();
 
         return response()->json($complaints);
@@ -28,7 +28,7 @@ class ComplaintController extends Controller
         $validated = $request->validate([
             'category_complaint_id' => 'nullable|exists:category_complaints,id',
             'description' => 'required|string',
-            'attachment' => 'nullable|file|mimes:jpeg,png,jpg|max:2048', // Max 2MB
+            'attachment' => 'nullable|file|mimes:jpeg,png,jpg|max:7048', // Max 6MB
             'assigned_to' => 'nullable|exists:users,id',
             'resolution_date' => 'nullable|date',
             'resolution_notes' => 'nullable|string',
@@ -84,7 +84,7 @@ class ComplaintController extends Controller
         $validated = $request->validate([
             'category_complaint_id' => 'nullable|exists:category_complaints,id',
             'description' => 'nullable|string', // Perbaiki typo: 'nulable' menjadi 'nullable'
-            'attachment' => 'nullable|file|mimes:jpeg,png,jpg|max:2048', // Max 2MB, nullable agar opsional
+            'attachment' => 'nullable|file|mimes:jpeg,png,jpg|max:7048', // Max 6MB, nullable agar opsional
             'assigned_to' => 'nullable|exists:users,id',
             'resolution_date' => 'nullable|date',
             'resolution_notes' => 'nullable|string',
@@ -117,6 +117,28 @@ class ComplaintController extends Controller
     }
 
     /**
+     * Get complaints submitted by the currently authenticated user.
+     */
+    public function myComplaints()
+    {
+        $user = auth()->user();
+
+        $complaints = Complaint::with(['categoryComplaint', 'assignedTo'])
+            ->where('user_id', $user->id)
+            ->get();
+
+        // Tambahkan URL attachment jika ada
+        $complaints->each(function ($complaint) {
+            if ($complaint->attachment) {
+                $complaint->attachment_url = asset('storage/' . $complaint->attachment);
+            }
+        });
+
+        return response()->json($complaints);
+    }
+
+
+    /**
      * Remove the specified resource from storage (soft delete).
      */
     public function destroy(string $id)
@@ -128,7 +150,7 @@ class ComplaintController extends Controller
         if ($complaint->attachment) {
             Storage::disk('public')->delete($complaint->attachment);
         }
-        
+
         return response()->json(['message' => 'Complaint deleted successfully.'], 200);
     }
 

@@ -72,20 +72,30 @@ class ComplaintResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('user_id')
-                    ->numeric()
+                Tables\Columns\TextColumn::make('user.name')
+                    ->label('User Name')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('category_complaint_id')
-                    ->numeric()
+                Tables\Columns\TextColumn::make('categoryComplaint.name')
+                    ->label('Category Complaint')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('status'),
-                Tables\Columns\TextColumn::make('attachment')
+                Tables\Columns\TextColumn::make('status')
+                    ->color(fn ($state) => match ($state) {
+                        'open' => 'success',
+                        'in_progress' => 'warning',
+                        'resolved' => 'primary',
+                        'closed' => 'danger',
+                    })
+                    ->badge()
+                    ->sortable(),
+                Tables\Columns\ImageColumn::make('attachment')
+                    ->disk('public')
+                    ->label('Attachment')
+                    ->size(150)
                     ->searchable(),
                 Tables\Columns\TextColumn::make('resolution_date')
                     ->dateTime()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('assigned_to')
-                    ->numeric()
+                Tables\Columns\TextColumn::make('assignedTo.name')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
