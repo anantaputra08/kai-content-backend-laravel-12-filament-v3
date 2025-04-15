@@ -28,9 +28,22 @@ class Content extends Model
 
     /**
      * Relationship to category
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
+     * @see \App\Models\Category
      */
     public function categories()
     {
         return $this->belongsToMany(Category::class);
     }
+
+    /**
+     * Relationship to favorites
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     * @see \App\Models\Favorite
+     */
+    public function favorites()
+    {
+        return $this->hasMany(Favorite::class);
+    }
+
 }

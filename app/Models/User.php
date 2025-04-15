@@ -52,8 +52,9 @@ class User extends Authenticatable
         ];
     }
 
-    public function contentInteractions()
+    public function favorites()
     {
-        return $this->hasMany(ContentUserInteraction::class);
+        return $this->hasMany(Favorite::class);
     }
+
 }

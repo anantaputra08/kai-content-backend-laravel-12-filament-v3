@@ -6,6 +6,7 @@ use App\Http\Controllers\ContentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\UserController;
 
@@ -37,4 +38,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('feedbacks', FeedbackController::class);
 
     Route::apiResource('complaints', ComplaintController::class);
+
+    Route::apiResource('favorites', FavoriteController::class)->only(['index', 'store', 'destroy']);
 });
