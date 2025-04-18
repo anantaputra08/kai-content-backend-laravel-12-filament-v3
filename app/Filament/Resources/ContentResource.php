@@ -23,7 +23,7 @@ class ContentResource extends Resource
     protected static ?string $navigationGroup = 'Content Management';
 
     protected static ?int $navigationSort = 2;
-    
+
     public static function form(Form $form): Form
     {
         return $form
@@ -31,14 +31,14 @@ class ContentResource extends Resource
                 Forms\Components\TextInput::make('title')
                     ->required()
                     ->maxLength(255),
-                Forms\Components\Textarea::make('description')
-                    ->columnSpanFull(),
                 Forms\Components\Select::make('categories')
                     ->label('Category')
                     ->relationship('categories', 'name')
                     ->multiple()
                     ->preload()
                     ->required(),
+                Forms\Components\Textarea::make('description')
+                    ->columnSpanFull(),
                 Forms\Components\FileUpload::make('file_path')
                     ->label('Video File')
                     ->uploadingMessage('Uploading attachment...')
@@ -66,6 +66,29 @@ class ContentResource extends Resource
                     ->enableDownload()
                     ->enableReordering()
                     ->default(null),
+                Forms\Components\FileUpload::make('thumbnail_path')
+                    ->label('Thumbnail')
+                    ->uploadingMessage('Uploading thumbnail...')
+                    ->preserveFilenames()
+                    ->disk('public')
+                    ->directory('thumbnails')
+                    ->visibility('public')
+                    ->acceptedFileTypes([
+                        'image/jpeg',
+                        'image/png',
+                        'image/jpg',
+                    ])
+                    ->maxSize(1024 * 1024)
+                    ->imagePreviewHeight('250')
+                    ->panelAspectRatio('16:9')
+                    ->panelLayout('integrated')
+                    ->removeUploadedFileButtonPosition('right')
+                    ->uploadButtonPosition('left')
+                    ->loadingIndicatorPosition('left')
+                    ->uploadProgressIndicatorPosition('left')
+                    ->enableOpen()
+                    ->enableDownload()
+                    ->imageEditor(),
                 Forms\Components\Select::make('status')
                     ->options([
                         'pending' => 'Pending',

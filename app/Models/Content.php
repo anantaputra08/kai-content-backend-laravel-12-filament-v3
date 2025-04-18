@@ -14,6 +14,7 @@ class Content extends Model
         'title',
         'description',
         'file_path',
+        'thumbnail_path',
         'status',
         'view_count',
         'total_watch_time',

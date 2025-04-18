@@ -64,8 +64,14 @@ class ComplaintController extends Controller
     public function show(string $id)
     {
         $complaint = Complaint::with(['user', 'categoryComplaint', 'assignedTo'])
-            ->withTrashed()
             ->findOrFail($id);
+
+        // // Tambahkan URL attachment jika ada
+        // $complaints->each(function ($complaint) {
+        //     if ($complaint->attachment) {
+        //         $complaint->attachment_url = asset('storage/' . $complaint->attachment);
+        //     }
+        // });
 
         if ($complaint->attachment) {
             $complaint->attachment_url = asset('storage/' . $complaint->attachment);

@@ -15,6 +15,7 @@ return new class extends Migration {
             $table->string('title');
             $table->text('description')->nullable();
             $table->string('file_path');
+            $table->string('thumbnail_path'); // untuk menyimpan thumbnail
             $table->string('type')->nullable(); // untuk menyimpan mime type
             $table->enum('status', ['pending', 'published', 'rejected'])->default('pending'); // bisa disesuaikan
             $table->unsignedBigInteger('view_count')->default(0);

@@ -17,6 +17,13 @@ class ContentController extends Controller
     public function index()
     {
         $contents = Content::with('categories')->get();
+
+        $contents->each(function ($content) {
+        if ($content->thumbnail_path) {
+            $content->thumbnail_url = asset('storage/' . $content->thumbnail_path);
+        }
+        });
+
         return response()->json($contents);
     }
 
@@ -36,6 +43,7 @@ class ContentController extends Controller
             'category_ids' => 'array',
             'category_ids.*' => 'exists:categories,id',
             'file' => 'required|file|mimes:mp4,avi,mov,webm', // max 50MB
+            'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // max 2MB
         ]);
 
         if ($validator->fails()) {
@@ -44,12 +52,14 @@ class ContentController extends Controller
 
         // Simpan file ke public disk
         $filePath = $request->file('file')->store('contents', 'public');
+        $thumbnailPath = $request->file('thumbnail')->store('thumbnails', 'public');
 
         // Buat content
         $content = Content::create([
             'title' => $request->title,
             'description' => $request->description,
             'file_path' => $filePath,
+            'thumbnail_path' => $thumbnailPath,
             'status' => $request->status,
             'view_count' => $request->view_count,
             'total_watch_time' => $request->total_watch_time,
@@ -144,6 +154,7 @@ class ContentController extends Controller
             'description' => 'nullable|string',
             'status' => 'nullable|in:published,draft',
             'file' => 'nullable|file|mimetypes:video/mp4,video/quicktime,video/x-msvideo,video/x-flv,video/webm', // max 100MB
+            'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', // max 2MB
         ]);
 
         // Jika ada file baru
@@ -155,6 +166,18 @@ class ContentController extends Controller
 
             // Simpan file baru
             $filePath = $request->file('file')->store('contents', 'public');
+            $content->file_path = $filePath;
+        }
+
+        // Jika ada thumbnail baru
+        if ($request->hasFile('thumbnail')) {
+            // Hapus thumbnail lama
+            if ($content->file_path && Storage::disk('public')->exists($content->file_path)) {
+                Storage::disk('public')->delete($content->file_path);
+            }
+
+            // Simpan thumbnail baru
+            $filePath = $request->file('thumbnail')->store('thumbnails', 'public');
             $content->file_path = $filePath;
         }
 

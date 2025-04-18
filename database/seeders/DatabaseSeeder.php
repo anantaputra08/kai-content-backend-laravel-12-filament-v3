@@ -29,6 +29,14 @@ class DatabaseSeeder extends Seeder
             'profile_picture' => 'profile_pictures/pngtree-flat-fingerprint-png-download-image_2286249.jpg',
         ]);
 
+        User::factory()->create([
+            'name' => 'Test Petugas',
+            'email' => 'petugas@example.com',
+            'password' => bcrypt('1234'),
+            'role' => 'operator',
+            'profile_picture' => 'profile_pictures/pngtree-flat-fingerprint-png-download-image_2286249.jpg',
+        ]);
+
         $this->call([
             CategorySeeder::class,
         ]);
