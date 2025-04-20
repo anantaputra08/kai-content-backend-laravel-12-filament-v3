@@ -8,6 +8,7 @@
     "require": {
         "php": "^8.2",
         "afatmustafa/blade-hugeicons": "^1.0",
+        "codeat3/blade-fluentui-system-icons": "^1.34",
         "filament/filament": "^3.2",
         "laravel/framework": "^12.0",
         "laravel/sanctum": "^4.0",
