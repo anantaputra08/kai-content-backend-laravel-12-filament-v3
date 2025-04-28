@@ -16,20 +16,43 @@ class FeedbackController extends Controller
     }
 
     // Menyimpan feedback baru
+    // Menyimpan feedback baru atau update jika sudah ada
     public function store(Request $request)
     {
         $request->validate([
-            'rating' => 'nullable|integer|between:1,5',
+            'rating' => 'nullable|numeric|between:0.5,5',
             'review' => 'nullable|string',
         ]);
 
-        $feedback = Feedback::create([
-            'user_id' => Auth::id(), // Mengambil ID user yang sedang login
-            'rating' => $request->rating,
-            'review' => $request->review,
-        ]);
+        // Cek apakah user sudah memiliki feedback
+        $existingFeedback = Feedback::where('user_id', Auth::id())
+            ->whereNull('deleted_at')
+            ->first();
 
-        return response()->json(['message' => 'Feedback created successfully', 'feedback' => $feedback], 201);
+        if ($existingFeedback) {
+            // Update feedback yang sudah ada
+            $existingFeedback->update([
+                'rating' => $request->rating,
+                'review' => $request->review,
+            ]);
+
+            return response()->json([
+                'message' => 'Feedback updated successfully',
+                'feedback' => $existingFeedback
+            ]);
+        } else {
+            // Buat feedback baru
+            $feedback = Feedback::create([
+                'user_id' => Auth::id(),
+                'rating' => $request->rating,
+                'review' => $request->review,
+            ]);
+
+            return response()->json([
+                'message' => 'Feedback created successfully',
+                'feedback' => $feedback
+            ], 201);
+        }
     }
 
     // Menampilkan detail feedback
@@ -77,14 +100,13 @@ class FeedbackController extends Controller
         return response()->json(['message' => 'Feedback deleted successfully']);
     }
 
-    /*
+    /**
      * Cek apakah user sudah memberikan feedback
-     * GET /api/feedback/check
+     * GET /api/feedbacks/check
      */
-    public function checkUserFeedback(Request $request)
+    public function checkUserFeedback()
     {
         $user = Auth::user();
-
         if (!$user) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }

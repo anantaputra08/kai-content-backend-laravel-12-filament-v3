@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CategoryComplaint;
 use App\Models\Complaint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -13,11 +14,60 @@ class ComplaintController extends Controller
      */
     public function index()
     {
-        $complaints = Complaint::with(['user', 'categoryComplaint', 'assignedTo'])
-            // ->withTrashed() // Sertakan data yang soft deleted
+        $user = auth()->user();
+
+        $complaints = Complaint::with(['categoryComplaint', 'assignedTo'])
+            ->where('assigned_to', $user->id)
+            ->orderBy('created_at', 'desc')
             ->get();
 
+        // Tambahkan URL attachment jika ada
+        $complaints->each(function ($complaint) {
+            if ($complaint->attachment) {
+                $complaint->attachment_url = asset('storage/' . $complaint->attachment);
+            }
+
+            // Tambahkan URL profile_picture dari assigned_to
+            if ($complaint->assignedTo && $complaint->assignedTo->profile_picture) {
+                $complaint->assignedTo->profile_picture_url = asset('storage/' . $complaint->assignedTo->profile_picture);
+            }
+        });
+
         return response()->json($complaints);
+    }
+
+    /**
+     * Get complaints submitted by the currently authenticated user.
+     */
+    public function myComplaints()
+    {
+        $user = auth()->user();
+
+        $complaints = Complaint::with(['categoryComplaint', 'assignedTo'])
+            ->where('user_id', $user->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        // Tambahkan URL attachment jika ada
+        $complaints->each(function ($complaint) {
+            if ($complaint->attachment) {
+                $complaint->attachment_url = asset('storage/' . $complaint->attachment);
+            }
+
+            // Tambahkan URL profile_picture dari assigned_to
+            if ($complaint->assignedTo && $complaint->assignedTo->profile_picture) {
+                $complaint->assignedTo->profile_picture_url = asset('storage/' . $complaint->assignedTo->profile_picture);
+            }
+        });
+
+        return response()->json($complaints);
+    }
+
+    public function categoriesComplaints()
+    {
+        $categories = CategoryComplaint::select('id', 'name')->get();
+
+        return response()->json($categories);
     }
 
     /**
@@ -120,27 +170,6 @@ class ComplaintController extends Controller
         }
 
         return response()->json($complaint->load(['user', 'categoryComplaint', 'assignedTo']));
-    }
-
-    /**
-     * Get complaints submitted by the currently authenticated user.
-     */
-    public function myComplaints()
-    {
-        $user = auth()->user();
-
-        $complaints = Complaint::with(['categoryComplaint', 'assignedTo'])
-            ->where('user_id', $user->id)
-            ->get();
-
-        // Tambahkan URL attachment jika ada
-        $complaints->each(function ($complaint) {
-            if ($complaint->attachment) {
-                $complaint->attachment_url = asset('storage/' . $complaint->attachment);
-            }
-        });
-
-        return response()->json($complaints);
     }
 
 

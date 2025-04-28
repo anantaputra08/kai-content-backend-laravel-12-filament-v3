@@ -36,13 +36,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/profile', [AuthController::class, 'delete']);
 
     Route::apiResource('categories', CategoryController::class);
-    
+
+    // Category routes
+    Route::get('categories', [ContentController::class, 'getAllCategories']);
+    Route::get('contents/{id}/categories', [ContentController::class, 'getContentCategories']);
+    Route::post('contents/{id}/categories', [ContentController::class, 'updateContentCategories']);
+    Route::get('contents/search', [ContentController::class, 'search']);
+    Route::get('contents/details/{id}', [ContentController::class, 'getContentDetails']);
     Route::apiResource('contents', ContentController::class);
 
     Route::get('feedbacks/check', [FeedbackController::class, 'checkUserFeedback']);
     Route::apiResource('feedbacks', FeedbackController::class);
 
     Route::get('complaints/my-complaints', [ComplaintController::class, 'myComplaints']);
+    Route::get('complaints/categories', [ComplaintController::class, 'categoriesComplaints']);
     Route::apiResource('complaints', ComplaintController::class);
 
     Route::apiResource('favorites', FavoriteController::class)->only(['index', 'store', 'destroy']);

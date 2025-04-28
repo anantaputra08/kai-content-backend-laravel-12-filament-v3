@@ -127,8 +127,10 @@ class ContentResource extends Resource
                     ->label('Kategori')
                     ->getStateUsing(fn($record) => $record->categories->pluck('name')->join(', '))
                     ->wrap(),
-                Tables\Columns\ImageColumn::make('file_path')
-                    ->label('Video File'),
+                Tables\Columns\ImageColumn::make('thumbnail_path')
+                    ->label('Thumbnail')
+                    ->height(100)
+                    ->width(100),
                 Tables\Columns\TextColumn::make('status')
                     ->color(fn($state) => match ($state) {
                         'pending' => 'warning',
