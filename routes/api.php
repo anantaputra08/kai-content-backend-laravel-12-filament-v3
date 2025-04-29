@@ -41,6 +41,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('categories', [ContentController::class, 'getAllCategories']);
     Route::get('contents/{id}/categories', [ContentController::class, 'getContentCategories']);
     Route::post('contents/{id}/categories', [ContentController::class, 'updateContentCategories']);
+
+    Route::get('api/content/{id}', [ContentController::class, 'getContent']);
+    Route::post('api/content/{id}/watch-time', [ContentController::class, 'reportWatchTime']);
+    Route::post('pi/content/{id}/reaction', [ContentController::class, 'setReaction']);
     Route::get('contents/search', [ContentController::class, 'search']);
     Route::get('contents/details/{id}', [ContentController::class, 'getContentDetails']);
     Route::apiResource('contents', ContentController::class);

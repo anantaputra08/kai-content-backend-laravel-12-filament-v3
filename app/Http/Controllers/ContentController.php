@@ -395,6 +395,156 @@ class ContentController extends Controller
     }
 
     /**
+     * Mendapatkan data konten untuk aplikasi
+     */
+    public function getContent(Request $request, string $id)
+    {
+        $content = Content::with('categories')->findOrFail($id);
+        
+        // Dapatkan base URL untuk streaming
+        $baseUrl = url('/');
+        
+        // Generate URL untuk streaming
+        $streamUrl = $baseUrl . '/api/content/stream/' . $content->id;
+        
+        // Generate URL untuk thumbnail
+        $thumbnailUrl = null;
+        if ($content->thumbnail_path) {
+            $thumbnailUrl = Storage::disk('public')->url($content->thumbnail_path);
+        }
+        
+        // Format data untuk respons
+        $responseData = [
+            'status' => 'success',
+            'message' => 'Content retrieved successfully',
+            'data' => [
+                'id' => $content->id,
+                'title' => $content->title,
+                'description' => $content->description,
+                'file_path' => $content->file_path,
+                'thumbnail_path' => $content->thumbnail_path,
+                'type' => $content->type,
+                'status' => $content->status,
+                'view_count' => $content->view_count,
+                'total_watch_time' => $content->total_watch_time,
+                'rank' => $content->rank,
+                'like' => $content->like,
+                'dislike' => $content->dislike,
+                'file_url' => $streamUrl,
+                'thumbnail_url' => $thumbnailUrl,
+                'created_at' => $content->created_at,
+                'updated_at' => $content->updated_at,
+                'categories' => $content->categories
+            ]
+        ];
+
+        return response()->json($responseData);
+    }
+
+    /**
+     * Stream video dengan dukungan untuk range requests
+     */
+    public function streamContent(Request $request, string $id)
+    {
+        $content = Content::findOrFail($id);
+        
+        // Increment view count hanya jika belum dihitung pada panggilan getContent
+        if ($request->header('X-First-Request', 'false') === 'true') {
+            $content->increment('view_count');
+        }
+        
+        $path = $content->file_path;
+        $disk = Storage::disk('public');
+        
+        if (!$disk->exists($path)) {
+            return response()->json(['message' => 'Video not found.'], 404);
+        }
+        
+        $fullPath = $disk->path($path);
+        $mime = mime_content_type($fullPath);
+        $size = filesize($fullPath);
+        $start = 0;
+        $end = $size - 1;
+        
+        // Cek apakah client minta sebagian (partial request)
+        if ($request->headers->has('Range')) {
+            preg_match('/bytes=(\d+)-(\d*)/', $request->header('Range'), $matches);
+            $start = intval($matches[1]);
+            if (isset($matches[2]) && is_numeric($matches[2])) {
+                $end = intval($matches[2]);
+            }
+        }
+        
+        $length = $end - $start + 1;
+        
+        $response = new StreamedResponse(function () use ($fullPath, $start, $length) {
+            $file = fopen($fullPath, 'rb');
+            fseek($file, $start);
+            echo fread($file, $length);
+            fclose($file);
+        });
+        
+        $response->headers->set('Content-Type', $mime);
+        $response->headers->set('Content-Length', $length);
+        $response->headers->set('Accept-Ranges', 'bytes');
+        
+        if ($request->headers->has('Range')) {
+            $response->setStatusCode(206); // Partial content
+            $response->headers->set('Content-Range', "bytes $start-$end/$size");
+        } else {
+            $response->setStatusCode(200);
+        }
+        
+        return $response;
+    }
+
+    /**
+     * Melaporkan waktu tonton
+     */
+    public function reportWatchTime(Request $request, string $id)
+    {
+        $content = Content::findOrFail($id);
+        $watchTime = $request->input('watch_time', 0);
+        
+        if ($watchTime > 0) {
+            $content->total_watch_time = ($content->total_watch_time ?? 0) + $watchTime;
+            $content->save();
+        }
+        
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Watch time recorded successfully'
+        ]);
+    }
+    
+    /**
+     * Mengatur like/dislike
+     */
+    public function setReaction(Request $request, string $id)
+    {
+        $content = Content::findOrFail($id);
+        $reaction = $request->input('reaction'); // 'like' atau 'dislike'
+        $value = $request->input('value', true); // true untuk menambah, false untuk menghapus
+        
+        if ($reaction === 'like') {
+            $content->like = $value ? $content->like + 1 : max(0, $content->like - 1);
+        } else if ($reaction === 'dislike') {
+            $content->dislike = $value ? $content->dislike + 1 : max(0, $content->dislike - 1);
+        }
+        
+        $content->save();
+        
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Reaction recorded successfully',
+            'data' => [
+                'like' => $content->like,
+                'dislike' => $content->dislike
+            ]
+        ]);
+    }
+
+    /**
      * Remove the specified resource from storage.
      * DELETE /api/contents/{id}
      */
