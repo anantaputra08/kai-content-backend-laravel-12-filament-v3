@@ -142,6 +142,7 @@ class ContentResource extends Resource
                     ->numeric()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('total_watch_time')
+                    ->suffix(' s')
                     ->numeric()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('rank')

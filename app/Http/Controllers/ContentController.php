@@ -18,7 +18,9 @@ class ContentController extends Controller
      */
     public function index()
     {
-        $contents = Content::with('categories')->get();
+        $contents = Content::with('categories')
+            ->where('status', 'published')
+            ->get();
 
         $contents->each(function ($content) {
             if ($content->thumbnail_path) {
@@ -30,6 +32,47 @@ class ContentController extends Controller
         });
 
         return response()->json($contents);
+    }
+
+    /**
+     * Get related contents based on content ID
+     * GET /api/content/{id}/related
+     */
+    public function getRelatedContents(string $id)
+    {
+        // Find the content we want to get related items for
+        $content = Content::with('categories')->findOrFail($id);
+
+        // Get category IDs from the content
+        $categoryIds = $content->categories->pluck('id')->toArray();
+
+        // Find other contents that share the same categories
+        // Exclude the current content and limit to 10 items
+        $relatedContents = Content::with('categories')
+            ->where('id', '!=', $id)
+            ->where('status', 'published')  // Only get published content
+            ->whereHas('categories', function ($query) use ($categoryIds) {
+                $query->whereIn('categories.id', $categoryIds);
+            })
+            ->orderBy('created_at', 'desc')
+            ->limit(10)
+            ->get();
+
+        // Add URLs for thumbnails and files
+        $relatedContents->each(function ($content) {
+            if ($content->thumbnail_path) {
+                $content->thumbnail_url = asset('storage/' . $content->thumbnail_path);
+            }
+            if ($content->file_path) {
+                $content->file_url = asset('storage/' . $content->file_path);
+            }
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Related contents retrieved successfully',
+            'data' => $relatedContents
+        ]);
     }
 
     /**
@@ -64,7 +107,7 @@ class ContentController extends Controller
      * Store a newly created resource in storage.
      * POST /api/contents
      */
-    
+
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -155,59 +198,59 @@ class ContentController extends Controller
      * Display the specified resource.
      * GET /api/contents/{id}
      */
-    public function show(Request $request, string $id)
-    {
-        $content = Content::findOrFail($id);
+    // public function show(Request $request, string $id)
+    // {
+    //     $content = Content::findOrFail($id);
 
-        // Increment view count
-        $content->increment('view_count');
+    //     // Increment view count
+    //     $content->increment('view_count');
 
-        $path = $content->file_path;
-        $disk = Storage::disk('public');
+    //     $path = $content->file_path;
+    //     $disk = Storage::disk('public');
 
-        if (!$disk->exists($path)) {
-            return response()->json(['message' => 'Video not found.'], 404);
-        }
+    //     if (!$disk->exists($path)) {
+    //         return response()->json(['message' => 'Video not found.'], 404);
+    //     }
 
-        $fullPath = $disk->path($path);
-        $mime = mime_content_type($fullPath);
+    //     $fullPath = $disk->path($path);
+    //     $mime = mime_content_type($fullPath);
 
-        $size = filesize($fullPath);
-        $start = 0;
-        $end = $size - 1;
+    //     $size = filesize($fullPath);
+    //     $start = 0;
+    //     $end = $size - 1;
 
-        // Cek apakah client minta sebagian (partial request)
-        if ($request->headers->has('Range')) {
-            preg_match('/bytes=(\d+)-(\d*)/', $request->header('Range'), $matches);
+    //     // Cek apakah client minta sebagian (partial request)
+    //     if ($request->headers->has('Range')) {
+    //         preg_match('/bytes=(\d+)-(\d*)/', $request->header('Range'), $matches);
 
-            $start = intval($matches[1]);
-            if (isset($matches[2]) && is_numeric($matches[2])) {
-                $end = intval($matches[2]);
-            }
-        }
+    //         $start = intval($matches[1]);
+    //         if (isset($matches[2]) && is_numeric($matches[2])) {
+    //             $end = intval($matches[2]);
+    //         }
+    //     }
 
-        $length = $end - $start + 1;
+    //     $length = $end - $start + 1;
 
-        $response = new StreamedResponse(function () use ($fullPath, $start, $length) {
-            $file = fopen($fullPath, 'rb');
-            fseek($file, $start);
-            echo fread($file, $length);
-            fclose($file);
-        });
+    //     $response = new StreamedResponse(function () use ($fullPath, $start, $length) {
+    //         $file = fopen($fullPath, 'rb');
+    //         fseek($file, $start);
+    //         echo fread($file, $length);
+    //         fclose($file);
+    //     });
 
-        $response->headers->set('Content-Type', $mime);
-        $response->headers->set('Content-Length', $length);
-        $response->headers->set('Accept-Ranges', 'bytes');
+    //     $response->headers->set('Content-Type', $mime);
+    //     $response->headers->set('Content-Length', $length);
+    //     $response->headers->set('Accept-Ranges', 'bytes');
 
-        if ($request->headers->has('Range')) {
-            $response->setStatusCode(206); // Partial content
-            $response->headers->set('Content-Range', "bytes $start-$end/$size");
-        } else {
-            $response->setStatusCode(200);
-        }
+    //     if ($request->headers->has('Range')) {
+    //         $response->setStatusCode(206); // Partial content
+    //         $response->headers->set('Content-Range', "bytes $start-$end/$size");
+    //     } else {
+    //         $response->setStatusCode(200);
+    //     }
 
-        return $response;
-    }
+    //     return $response;
+    // }
     /**
      * Update the specified resource in storage.
      * PUT/PATCH /api/contents/{id}
@@ -400,19 +443,21 @@ class ContentController extends Controller
     public function getContent(Request $request, string $id)
     {
         $content = Content::with('categories')->findOrFail($id);
-        
-        // Dapatkan base URL untuk streaming
-        $baseUrl = url('/');
-        
+
+        $content->increment('view_count');
+
         // Generate URL untuk streaming
-        $streamUrl = $baseUrl . '/api/content/stream/' . $content->id;
-        
+        // $streamUrl = $baseUrl . '/api/content/stream/' . $content->id;
+        if ($content->file_path) {
+            $fileUrl = Storage::disk('public')->url($content->file_path);
+        }
+
         // Generate URL untuk thumbnail
         $thumbnailUrl = null;
         if ($content->thumbnail_path) {
             $thumbnailUrl = Storage::disk('public')->url($content->thumbnail_path);
         }
-        
+
         // Format data untuk respons
         $responseData = [
             'status' => 'success',
@@ -430,7 +475,7 @@ class ContentController extends Controller
                 'rank' => $content->rank,
                 'like' => $content->like,
                 'dislike' => $content->dislike,
-                'file_url' => $streamUrl,
+                'file_url' => $fileUrl,
                 'thumbnail_url' => $thumbnailUrl,
                 'created_at' => $content->created_at,
                 'updated_at' => $content->updated_at,
@@ -447,25 +492,25 @@ class ContentController extends Controller
     public function streamContent(Request $request, string $id)
     {
         $content = Content::findOrFail($id);
-        
+
         // Increment view count hanya jika belum dihitung pada panggilan getContent
         if ($request->header('X-First-Request', 'false') === 'true') {
             $content->increment('view_count');
         }
-        
+
         $path = $content->file_path;
         $disk = Storage::disk('public');
-        
+
         if (!$disk->exists($path)) {
             return response()->json(['message' => 'Video not found.'], 404);
         }
-        
+
         $fullPath = $disk->path($path);
         $mime = mime_content_type($fullPath);
         $size = filesize($fullPath);
         $start = 0;
         $end = $size - 1;
-        
+
         // Cek apakah client minta sebagian (partial request)
         if ($request->headers->has('Range')) {
             preg_match('/bytes=(\d+)-(\d*)/', $request->header('Range'), $matches);
@@ -474,27 +519,27 @@ class ContentController extends Controller
                 $end = intval($matches[2]);
             }
         }
-        
+
         $length = $end - $start + 1;
-        
+
         $response = new StreamedResponse(function () use ($fullPath, $start, $length) {
             $file = fopen($fullPath, 'rb');
             fseek($file, $start);
             echo fread($file, $length);
             fclose($file);
         });
-        
+
         $response->headers->set('Content-Type', $mime);
         $response->headers->set('Content-Length', $length);
         $response->headers->set('Accept-Ranges', 'bytes');
-        
+
         if ($request->headers->has('Range')) {
             $response->setStatusCode(206); // Partial content
             $response->headers->set('Content-Range', "bytes $start-$end/$size");
         } else {
             $response->setStatusCode(200);
         }
-        
+
         return $response;
     }
 
@@ -505,18 +550,18 @@ class ContentController extends Controller
     {
         $content = Content::findOrFail($id);
         $watchTime = $request->input('watch_time', 0);
-        
+
         if ($watchTime > 0) {
             $content->total_watch_time = ($content->total_watch_time ?? 0) + $watchTime;
             $content->save();
         }
-        
+
         return response()->json([
             'status' => 'success',
             'message' => 'Watch time recorded successfully'
         ]);
     }
-    
+
     /**
      * Mengatur like/dislike
      */
@@ -525,15 +570,15 @@ class ContentController extends Controller
         $content = Content::findOrFail($id);
         $reaction = $request->input('reaction'); // 'like' atau 'dislike'
         $value = $request->input('value', true); // true untuk menambah, false untuk menghapus
-        
+
         if ($reaction === 'like') {
             $content->like = $value ? $content->like + 1 : max(0, $content->like - 1);
         } else if ($reaction === 'dislike') {
             $content->dislike = $value ? $content->dislike + 1 : max(0, $content->dislike - 1);
         }
-        
+
         $content->save();
-        
+
         return response()->json([
             'status' => 'success',
             'message' => 'Reaction recorded successfully',
