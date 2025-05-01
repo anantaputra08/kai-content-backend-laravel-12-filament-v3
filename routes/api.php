@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\FeedbackController;
+use App\Http\Controllers\ReactionController;
 use App\Http\Controllers\UserController;
 
 /*
@@ -57,5 +58,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('complaints/categories', [ComplaintController::class, 'categoriesComplaints']);
     Route::apiResource('complaints', ComplaintController::class);
 
-    Route::apiResource('favorites', FavoriteController::class)->only(['index', 'store', 'destroy']);
+    Route::get('/favorite/check/{id}', [FavoriteController::class, 'isFavorite']);
+    Route::post('/favorite/toggle/{id}', [FavoriteController::class, 'toggleFavorite']);
+    Route::get('/favorite', [FavoriteController::class, 'index']);
 });

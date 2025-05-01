@@ -12,7 +12,7 @@ class Favorite extends Model
         'updated_at' => 'datetime',
     ];
 
-    
+
     public function user()
     {
         return $this->belongsTo(User::class);
@@ -25,4 +25,10 @@ class Favorite extends Model
     {
         return $this->belongsTo(Content::class);
     }
+
+    public function categories()
+    {
+        return $this->belongsToMany(Category::class, 'category_content');
+    }
+
 }

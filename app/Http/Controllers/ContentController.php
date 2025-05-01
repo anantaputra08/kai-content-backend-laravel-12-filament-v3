@@ -194,63 +194,7 @@ class ContentController extends Controller
             'data' => $content->load('categories'),
         ]);
     }
-    /**
-     * Display the specified resource.
-     * GET /api/contents/{id}
-     */
-    // public function show(Request $request, string $id)
-    // {
-    //     $content = Content::findOrFail($id);
-
-    //     // Increment view count
-    //     $content->increment('view_count');
-
-    //     $path = $content->file_path;
-    //     $disk = Storage::disk('public');
-
-    //     if (!$disk->exists($path)) {
-    //         return response()->json(['message' => 'Video not found.'], 404);
-    //     }
-
-    //     $fullPath = $disk->path($path);
-    //     $mime = mime_content_type($fullPath);
-
-    //     $size = filesize($fullPath);
-    //     $start = 0;
-    //     $end = $size - 1;
-
-    //     // Cek apakah client minta sebagian (partial request)
-    //     if ($request->headers->has('Range')) {
-    //         preg_match('/bytes=(\d+)-(\d*)/', $request->header('Range'), $matches);
-
-    //         $start = intval($matches[1]);
-    //         if (isset($matches[2]) && is_numeric($matches[2])) {
-    //             $end = intval($matches[2]);
-    //         }
-    //     }
-
-    //     $length = $end - $start + 1;
-
-    //     $response = new StreamedResponse(function () use ($fullPath, $start, $length) {
-    //         $file = fopen($fullPath, 'rb');
-    //         fseek($file, $start);
-    //         echo fread($file, $length);
-    //         fclose($file);
-    //     });
-
-    //     $response->headers->set('Content-Type', $mime);
-    //     $response->headers->set('Content-Length', $length);
-    //     $response->headers->set('Accept-Ranges', 'bytes');
-
-    //     if ($request->headers->has('Range')) {
-    //         $response->setStatusCode(206); // Partial content
-    //         $response->headers->set('Content-Range', "bytes $start-$end/$size");
-    //     } else {
-    //         $response->setStatusCode(200);
-    //     }
-
-    //     return $response;
-    // }
+    
     /**
      * Update the specified resource in storage.
      * PUT/PATCH /api/contents/{id}
