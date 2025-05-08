@@ -6,6 +6,7 @@ use App\Models\Content;
 use App\Models\LikeDislike;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Validator;
 
 class LikeDislikeController extends Controller
 {
@@ -43,13 +44,55 @@ class LikeDislikeController extends Controller
     }
 
     /**
-     * Mengatur like/dislike
+     * Mengatur like/dislike dengan format request yang baru
+     * 
+     * @param Request $request
+     * @param string $id ID konten (opsional, bisa dari request body)
+     * @return JsonResponse
      */
-    public function setReaction(Request $request, string $id)
+    public function setReaction(Request $request, string $id = null)
     {
-        $user = Auth::user();
-        $content = Content::findOrFail($id);
-        $reaction = $request->input('reaction'); // 'like' atau 'dislike'
+        // Validasi input
+        $validator = Validator::make($request->all(), [
+            'reaction_type' => 'required|in:like,dislike',
+            'action' => 'required|boolean',
+            'content_id' => 'required_without:id|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        // Verifikasi token dan autentikasi user
+        try {
+            // Gunakan token untuk autentikasi
+            // Contoh: Jika menggunakan token API atau sanctum/passport
+            $user = Auth::guard('api')->user();
+
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthorized access'
+                ], 401);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Authentication failed'
+            ], 401);
+        }
+
+        // Ambil content ID dari parameter URL atau request body
+        $contentId = $id ?? $request->input('content_id');
+        $content = Content::findOrFail($contentId);
+
+        // Ambil jenis reaksi dan aksi
+        $reactionType = $request->input('reaction_type'); // 'like' atau 'dislike'
+        $action = $request->input('action'); // true = create, false = delete
 
         // Ambil record reaksi user ke konten ini
         $likeDislike = LikeDislike::firstOrNew([
@@ -57,37 +100,65 @@ class LikeDislikeController extends Controller
             'content_id' => $content->id,
         ]);
 
-        $previous = $likeDislike->is_like; // bisa true, false, atau null
-        $newValue = $reaction === 'like' ? true : false;
+        $previous = null;
+        if ($likeDislike->is_like !== null) {
+            $previous = (bool) $likeDislike->is_like; // Konversi 1/0 ke true/false
+        }
+        $newValue = $reactionType === 'like' ? true : false;
 
-        if ($previous === $newValue) {
-            // Toggle off (hapus reaksi)
-            $likeDislike->is_like = null;
-
-            if ($newValue === true) {
-                $content->like = max(0, $content->like - 1);
-            } else {
-                $content->dislike = max(0, $content->dislike - 1);
-            }
-        } else {
-            // Set atau ubah reaksi
-            $likeDislike->is_like = $newValue;
-
-            if ($previous !== null) {
-                // Ubah reaksi
-                if ($previous === true) {
+        if ($action === false) {
+            // Jika action false, hapus reaksi
+            if ($previous === $newValue) {
+                // Hapus reaksi yang sesuai dengan jenis reaksi
+                $likeDislike->is_like = null;
+                if ($newValue === true) {
                     $content->like = max(0, $content->like - 1);
-                    $content->dislike += 1;
                 } else {
                     $content->dislike = max(0, $content->dislike - 1);
-                    $content->like += 1;
                 }
             } else {
-                // Reaksi baru
-                if ($newValue === true) {
-                    $content->like += 1;
+                // Jika mencoba menghapus reaksi yang tidak ada, abaikan
+                return response()->json([
+                    'status' => 'warning',
+                    'message' => 'No matching reaction to remove',
+                    'data' => [
+                        'like' => $content->like,
+                        'dislike' => $content->dislike
+                    ]
+                ]);
+            }
+        } else {
+            // Jika action true, buat atau ubah reaksi
+            if ($previous === $newValue) {
+                // Reaksi sudah ada dan sama, tidak perlu diubah
+                return response()->json([
+                    'status' => 'info',
+                    'message' => 'Reaction already exists',
+                    'data' => [
+                        'like' => $content->like,
+                        'dislike' => $content->dislike
+                    ]
+                ]);
+            } else {
+                // Set atau ubah reaksi
+                $likeDislike->is_like = $newValue;
+
+                if ($previous !== null) {
+                    // Ubah reaksi
+                    if ($previous === true) {
+                        $content->like = max(0, $content->like - 1);
+                        $content->dislike += 1;
+                    } else {
+                        $content->dislike = max(0, $content->dislike - 1);
+                        $content->like += 1;
+                    }
                 } else {
-                    $content->dislike += 1;
+                    // Reaksi baru
+                    if ($newValue === true) {
+                        $content->like += 1;
+                    } else {
+                        $content->dislike += 1;
+                    }
                 }
             }
         }
@@ -95,41 +166,28 @@ class LikeDislikeController extends Controller
         $likeDislike->save();
         $content->save();
 
+        // Prepare the is_like and is_dislike values for the response
+        $responseIsLike = false;
+        $responseIsDislike = false;
+
+        if ($likeDislike->is_like !== null) {
+            $responseIsLike = (bool) $likeDislike->is_like;
+            $responseIsDislike = !$responseIsLike;
+        }
+
         return response()->json([
             'status' => 'success',
             'message' => 'Reaction updated successfully',
             'data' => [
                 'like' => $content->like,
-                'dislike' => $content->dislike
-            ]
-        ]);
-    }
-
-
-    // ➕ Add or update like/dislike
-    public function react(Request $request)
-    {
-        $request->validate([
-            'content_id' => 'required|exists:contents,id',
-            'is_like' => 'required|boolean',
-        ]);
-
-        $user = Auth::user();
-
-        $reaction = LikeDislike::updateOrCreate(
-            [
+                'dislike' => $content->dislike,
+                'is_like' => $responseIsLike,
+                'is_dislike' => $responseIsDislike,
+                'content_id' => $content->id,
                 'user_id' => $user->id,
-                'content_id' => $request->content_id
-            ],
-            [
-                'is_like' => $request->is_like
+                'reaction_type' => $reactionType,
+                'action' => $action
             ]
-        );
-
-        return response()->json([
-            'status' => 'success',
-            'message' => $request->is_like ? 'Liked successfully' : 'Disliked successfully',
-            'data' => $reaction
         ]);
     }
 
