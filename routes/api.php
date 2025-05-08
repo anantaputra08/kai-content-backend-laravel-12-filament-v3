@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\FeedbackController;
+use App\Http\Controllers\LikeDislikeController;
 use App\Http\Controllers\ReactionController;
 use App\Http\Controllers\UserController;
 
@@ -46,7 +47,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('content/{id}', [ContentController::class, 'getContent']);
     Route::get('content/{id}/related', [ContentController::class, 'getRelatedContents']);
     Route::post('content/{id}/watch-time', [ContentController::class, 'reportWatchTime']);
-    Route::post('content/{id}/reaction', [ContentController::class, 'setReaction']);
+    // Route::post('content/{id}/reaction', [ContentController::class, 'setReaction']);
     Route::get('contents/search', [ContentController::class, 'search']);
     Route::get('contents/details/{id}', [ContentController::class, 'getContentDetails']);
     Route::apiResource('contents', ContentController::class);
@@ -61,4 +62,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/favorite/check/{id}', [FavoriteController::class, 'isFavorite']);
     Route::post('/favorite/toggle/{id}', [FavoriteController::class, 'toggleFavorite']);
     Route::get('/favorite', [FavoriteController::class, 'index']);
+
+    Route::get('/like-dislike/check/{contentId}', [LikeDislikeController::class, 'checkStatus']);
+    Route::post('/like-dislike/{contentId}', [LikeDislikeController::class, 'setReaction']);
+    Route::delete('/like-dislike/{contentId}', [LikeDislikeController::class, 'remove']);
 });
