@@ -10,6 +10,7 @@ use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\LikeDislikeController;
 use App\Http\Controllers\ReactionController;
+use App\Http\Controllers\ReviewContentController;
 use App\Http\Controllers\UserController;
 
 /*
@@ -66,4 +67,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/like-dislike/check/{contentId}', [LikeDislikeController::class, 'checkStatus']);
     Route::post('/like-dislike/{contentId}', [LikeDislikeController::class, 'setReaction']);
     Route::delete('/like-dislike/{contentId}', [LikeDislikeController::class, 'remove']);
+
+    Route::get('reviews/check/{contentId}', [ReviewContentController::class, 'checkUserReview']);
+    Route::post('reviews', [ReviewContentController::class, 'store']);
 });
