@@ -22,7 +22,7 @@ class ContentResource extends Resource
 
     protected static ?string $navigationGroup = 'Content Management';
 
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 3;
 
     public static function form(Form $form): Form
     {
@@ -97,6 +97,19 @@ class ContentResource extends Resource
                     ])
                     ->default('pending')
                     ->required(),
+                Forms\Components\Select::make('Carriages')
+                    ->relationship('carriages', 'name')
+                    ->multiple()
+                    ->preload()
+                    ->required(),
+                Forms\Components\TimePicker::make('airing_time_start')
+                    ->label('Airing Time Start')
+                    ->required()
+                    ->default(now()),
+                Forms\Components\TimePicker::make('airing_time_end')
+                    ->label('Airing Time End')
+                    ->required()
+                    ->default(now()->addHours(2)),
                 // Forms\Components\TextInput::make('view_count')
                 //     ->numeric()
                 //     ->default(0),
@@ -138,6 +151,16 @@ class ContentResource extends Resource
                         'rejected' => 'danger',
                     })
                     ->badge(),
+                Tables\Columns\TextColumn::make('carriages_list')
+                    ->label('Carriages')
+                    ->getStateUsing(fn($record) => $record->carriages->pluck('name')->join(', '))
+                    ->wrap(),
+                Tables\Columns\TextColumn::make('airing_time_start')
+                    ->label('Airing Time Start')
+                    ->Time(),
+                Tables\Columns\TextColumn::make('airing_time_end')
+                    ->label('Airing Time End')
+                    ->Time(),
                 Tables\Columns\TextColumn::make('view_count')
                     ->numeric()
                     ->sortable(),
