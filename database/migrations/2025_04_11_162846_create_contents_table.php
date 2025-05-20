@@ -18,8 +18,8 @@ return new class extends Migration {
             $table->string('thumbnail_path');
             $table->string('type')->nullable();
             $table->enum('status', ['pending', 'published', 'rejected'])->default('pending');
-            $table->timestamp('airing_start')->nullable(); 
-            $table->timestamp('airing_end')->nullable();
+            $table->time('airing_time_start')->nullable();
+            $table->time('airing_time_end')->nullable();
             $table->unsignedBigInteger('view_count')->default(0);
             $table->unsignedBigInteger('total_watch_time')->default(0);
             $table->integer('rank')->default(0);

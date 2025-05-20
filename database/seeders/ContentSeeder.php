@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Category;
 use App\Models\Content;
+use App\Models\Carriages;
 use Illuminate\Database\Seeder;
 
 class ContentSeeder extends Seeder
@@ -18,6 +19,11 @@ class ContentSeeder extends Seeder
         $category2 = Category::where('name', 'Sci-Fi')->first();
         $category3 = Category::where('name', 'Comedy')->first();
 
+        // Ambil gerbong berdasarkan nama
+        $carriageA = Carriages::where('name', 'Gerbong A')->first();
+        $carriageB = Carriages::where('name', 'Gerbong B')->first();
+        $carriageC = Carriages::where('name', 'Gerbong C')->first();
+
         // Buat konten
         $content1 = Content::create([
             'title' => 'Cara Membuat Website dengan Laravel',
@@ -26,8 +32,8 @@ class ContentSeeder extends Seeder
             'thumbnail_path' => 'thumbnails/Screenshot 2025-04-15 at 20.34.54.png',
             'type' => 'video/mp4',
             'status' => 'published',
-            'airing_start' => now()->addHours(1),
-            'airing_end' => now()->addHours(2),
+            'airing_time_start' => now()->addHours(1),
+            'airing_time_end' => now()->addHours(2),
             'view_count' => 100,
             'total_watch_time' => 3600,
             'rank' => 5,
@@ -42,8 +48,8 @@ class ContentSeeder extends Seeder
             'thumbnail_path' => 'thumbnails/dkPUFh1FnFBdwODHtqGsmmS7bjuFM7lbHF6TXRCj.jpg',
             'type' => 'video/mp4',
             'status' => 'published',
-            'airing_start' => now(),
-            'airing_end' => now()->addHours(1),
+            'airing_time_start' => now(),
+            'airing_time_end' => now()->addHours(1),
             'view_count' => 250,
             'total_watch_time' => 7200,
             'rank' => 4,
@@ -58,8 +64,8 @@ class ContentSeeder extends Seeder
             'thumbnail_path' => 'thumbnails/cKlXQx18lWH9gB0LR07yfnSwDQo8b22JXbTiuYOD.jpg',
             'type' => 'video/mp4',
             'status' => 'published',
-            'airing_start' => now()->addHours(1),
-            'airing_end' => now()->addDays(1),
+            'airing_time_start' => now()->addHours(1),
+            'airing_time_end' => now()->addDays(1),
             'view_count' => 400,
             'total_watch_time' => 10800,
             'rank' => 3,
@@ -72,6 +78,13 @@ class ContentSeeder extends Seeder
             $content1->categories()->attach([$category1->id, $category2->id]);
             $content2->categories()->attach([$category2->id, $category3->id]);
             $content3->categories()->attach([$category3->id]);
+        }
+
+        // Relasikan konten dengan gerbong
+        if ($carriageA && $carriageB && $carriageC) {
+            $content1->carriages()->attach([$carriageA->id, $carriageB->id]);
+            $content2->carriages()->attach([$carriageB->id]);
+            $content3->carriages()->attach([$carriageC->id]);
         }
     }
 }

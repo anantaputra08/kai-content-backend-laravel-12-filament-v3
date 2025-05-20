@@ -15,36 +15,42 @@ class Content extends Model
         'description',
         'file_path',
         'thumbnail_path',
+        'type',
         'status',
         'view_count',
         'total_watch_time',
         'rank',
+        'like',
+        'dislike',
+        'airing_time_start',
+        'airing_time_end',
     ];
 
     protected $casts = [
+        'view_count' => 'integer',
+        'total_watch_time' => 'integer',
+        'rank' => 'integer',
+        'like' => 'integer',
+        'dislike' => 'integer',
+        'airing_time_start' => 'datetime:H:i',
+        'airing_time_end' => 'datetime:H:i',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
     ];
 
-    /**
-     * Relationship to category
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
-     * @see \App\Models\Category
-     */
     public function categories()
     {
         return $this->belongsToMany(Category::class);
     }
 
-    /**
-     * Relationship to favorites
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany
-     * @see \App\Models\Favorite
-     */
     public function favorites()
     {
         return $this->hasMany(Favorite::class);
     }
 
+    public function carriages()
+    {
+        return $this->belongsToMany(Carriages::class, 'carriages_contents');
+    }
 }
