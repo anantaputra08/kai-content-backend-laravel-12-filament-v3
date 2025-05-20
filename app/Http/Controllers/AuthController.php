@@ -66,6 +66,10 @@ class AuthController extends Controller
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        if ($user->profile_picture) {
+            $user->profile_picture = asset('storage/' . $user->profile_picture);
+        }
+
         return response()->json([
             'message' => 'Login successful',
             'token' => $token,

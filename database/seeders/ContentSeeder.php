@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use App\Models\Category;
 use App\Models\Content;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class ContentSeeder extends Seeder
@@ -14,18 +13,21 @@ class ContentSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Buat kategori
-        $category1 = Category::create(['name' => 'Tutorial']);
-        $category2 = Category::create(['name' => 'Review']);
-        $category3 = Category::create(['name' => 'Entertainment']);
+        // Ambil kategori berdasarkan nama
+        $category1 = Category::where('name', 'Documentary')->first();
+        $category2 = Category::where('name', 'Sci-Fi')->first();
+        $category3 = Category::where('name', 'Comedy')->first();
 
-        // 2. Buat konten
+        // Buat konten
         $content1 = Content::create([
             'title' => 'Cara Membuat Website dengan Laravel',
             'description' => 'Panduan lengkap membuat website Laravel.',
-            'file_path' => 'videos/laravel_tutorial.mp4',
+            'file_path' => 'contents/cobaini.mp4',
+            'thumbnail_path' => 'thumbnails/Screenshot 2025-04-15 at 20.34.54.png',
             'type' => 'video/mp4',
             'status' => 'published',
+            'airing_start' => now()->addHours(1),
+            'airing_end' => now()->addHours(2),
             'view_count' => 100,
             'total_watch_time' => 3600,
             'rank' => 5,
@@ -36,9 +38,12 @@ class ContentSeeder extends Seeder
         $content2 = Content::create([
             'title' => 'Unboxing iPhone 15 Pro Max',
             'description' => 'Review dan kesan pertama.',
-            'file_path' => 'videos/iphone_review.mp4',
+            'file_path' => 'contents/cFVN5jE0XWqfWcJxX1tFrN6mTJIODcLG5ZbV0TU3.mp4',
+            'thumbnail_path' => 'thumbnails/dkPUFh1FnFBdwODHtqGsmmS7bjuFM7lbHF6TXRCj.jpg',
             'type' => 'video/mp4',
             'status' => 'published',
+            'airing_start' => now(),
+            'airing_end' => now()->addHours(1),
             'view_count' => 250,
             'total_watch_time' => 7200,
             'rank' => 4,
@@ -49,9 +54,12 @@ class ContentSeeder extends Seeder
         $content3 = Content::create([
             'title' => 'Standup Comedy - Open Mic',
             'description' => 'Penampilan komedi lucu.',
-            'file_path' => 'videos/comedy_show.mp4',
+            'file_path' => 'contents/cFVN5jE0XWqfWcJxX1tFrN6mTJIODcLG5ZbV0TU3.mp4',
+            'thumbnail_path' => 'thumbnails/cKlXQx18lWH9gB0LR07yfnSwDQo8b22JXbTiuYOD.jpg',
             'type' => 'video/mp4',
             'status' => 'published',
+            'airing_start' => now()->addHours(1),
+            'airing_end' => now()->addDays(1),
             'view_count' => 400,
             'total_watch_time' => 10800,
             'rank' => 3,
@@ -59,13 +67,11 @@ class ContentSeeder extends Seeder
             'dislike' => 10,
         ]);
 
-        // 3. Relasikan konten dengan kategori
-        $content1->categories()->attach([$category1->id]); // Tutorial
-        $content2->categories()->attach([$category2->id]); // Review
-        $content3->categories()->attach([$category3->id]); // Entertainment
-
-        // Tambahan: konten bisa punya lebih dari 1 kategori
-        $content1->categories()->attach($category2->id); // Tutorial + Review
-        $content2->categories()->attach($category1->id); // Review + Tutorial
+        // Relasikan konten dengan kategori
+        if ($category1 && $category2 && $category3) {
+            $content1->categories()->attach([$category1->id, $category2->id]);
+            $content2->categories()->attach([$category2->id, $category3->id]);
+            $content3->categories()->attach([$category3->id]);
+        }
     }
 }

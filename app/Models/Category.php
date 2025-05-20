@@ -30,6 +30,6 @@ class Category extends Model
      */
     public function contents()
     {
-        return $this->hasMany(Content::class);
+        return $this->belongsToMany(Content::class);
     }
 }
