@@ -104,10 +104,13 @@ class ContentResource extends Resource
                     ->required(),
                 Forms\Components\TimePicker::make('airing_time_start')
                     ->label('Airing Time Start')
+                    ->withoutSeconds()
+                    ->format('H:i')
                     ->required()
                     ->default(now()),
                 Forms\Components\TimePicker::make('airing_time_end')
                     ->label('Airing Time End')
+                    ->withoutSeconds()
                     ->required()
                     ->default(now()->addHours(2)),
                 // Forms\Components\TextInput::make('view_count')
@@ -157,10 +160,10 @@ class ContentResource extends Resource
                     ->wrap(),
                 Tables\Columns\TextColumn::make('airing_time_start')
                     ->label('Airing Time Start')
-                    ->Time(),
+                    ->Time('H:i'),
                 Tables\Columns\TextColumn::make('airing_time_end')
                     ->label('Airing Time End')
-                    ->Time(),
+                    ->Time('H:i'),
                 Tables\Columns\TextColumn::make('view_count')
                     ->numeric()
                     ->sortable(),
