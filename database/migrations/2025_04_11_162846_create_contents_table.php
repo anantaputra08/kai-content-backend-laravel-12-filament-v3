@@ -15,9 +15,12 @@ return new class extends Migration {
             $table->string('title');
             $table->text('description')->nullable();
             $table->string('file_path');
+            $table->string('stream_url')->nullable();
+            $table->string('stream_key')->nullable();
             $table->string('thumbnail_path');
             $table->string('type')->nullable();
             $table->enum('status', ['pending', 'published', 'rejected'])->default('pending');
+            $table->boolean('is_live')->default(false);
             $table->time('airing_time_start')->nullable();
             $table->time('airing_time_end')->nullable();
             $table->unsignedBigInteger('view_count')->default(0);

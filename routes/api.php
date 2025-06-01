@@ -11,6 +11,7 @@ use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\LikeDislikeController;
 use App\Http\Controllers\ReactionController;
 use App\Http\Controllers\ReviewContentController;
+use App\Http\Controllers\StreamController;
 use App\Http\Controllers\UserController;
 
 /*
@@ -70,4 +71,26 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('reviews/check/{contentId}', [ReviewContentController::class, 'checkUserReview']);
     Route::post('reviews', [ReviewContentController::class, 'store']);
+});
+
+
+Route::group(['prefix' => 'stream'], function() {
+    Route::get('/now-playing', [StreamController::class, 'nowPlaying']);
+    Route::get('/{content}/playlist', [StreamController::class, 'playlist']);
+    Route::post('/{content}/start', [StreamController::class, 'startStream']);
+    Route::post('/{content}/stop', [StreamController::class, 'stopStream'])->middleware('auth:sanctum');
+});
+
+Route::get('/stream/test-now-playing', [StreamController::class, 'testNowPlaying']);
+
+Route::get('/test-ffmpeg', function() {
+    $ffmpeg = env('FFMPEG_PATH');
+    $command = "$ffmpeg -version";
+    exec($command, $output, $return);
+    
+    return [
+        'path' => $ffmpeg,
+        'output' => $output,
+        'return_code' => $return
+    ];
 });
