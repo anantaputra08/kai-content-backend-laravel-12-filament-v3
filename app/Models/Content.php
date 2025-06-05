@@ -18,6 +18,7 @@ class Content extends Model
         'stream_key',
         'thumbnail_path',
         'type',
+        'duration_seconds',
         'status',
         'is_live',
         'view_count',

@@ -19,6 +19,7 @@ return new class extends Migration {
             $table->string('stream_key')->nullable();
             $table->string('thumbnail_path');
             $table->string('type')->nullable();
+            $table->integer('duration_seconds')->nullable();
             $table->enum('status', ['pending', 'published', 'rejected'])->default('pending');
             $table->boolean('is_live')->default(false);
             $table->time('airing_time_start')->nullable();
