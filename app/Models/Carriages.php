@@ -18,4 +18,20 @@ class Carriages extends Model
     {
         return $this->belongsToMany(Content::class, 'carriages_contents');
     }
+
+    /**
+     * Sebuah carriage bisa memiliki banyak sesi voting.
+     */
+    public function votings()
+    {
+        return $this->hasMany(Voting::class, 'carriages_id');
+    }
+
+    /**
+     * Mendapatkan sesi voting yang sedang aktif untuk carriage ini.
+     */
+    public function activeVoting()
+    {
+        return $this->hasOne(Voting::class, 'carriages_id')->where('is_active', true);
+    }
 }
