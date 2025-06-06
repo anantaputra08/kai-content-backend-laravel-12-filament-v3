@@ -13,6 +13,8 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Storage;
+use FFMpeg\FFMpeg;
+use FFMpeg\FFProbe;
 
 class ContentResource extends Resource
 {
@@ -65,7 +67,22 @@ class ContentResource extends Resource
                     ->enableOpen()
                     ->enableDownload()
                     ->enableReordering()
-                    ->default(null),
+                    ->default(null)
+                    ->afterStateUpdated(function ($state, callable $set) {
+                        if ($state) {
+                            $set('type', $state->getMimeType());
+
+                            $ffprobe = FFProbe::create();
+                            $duration = $ffprobe
+                                ->format($state->getRealPath())
+                                ->get('duration');
+
+                            $set('duration_seconds', round($duration));
+                        }
+                    }),
+                Forms\Components\Hidden::make('type'),
+                Forms\Components\Hidden::make('duration_seconds')
+                    ->default(0),
                 Forms\Components\FileUpload::make('thumbnail_path')
                     ->label('Thumbnail')
                     ->uploadingMessage('Uploading thumbnail...')
@@ -147,6 +164,13 @@ class ContentResource extends Resource
                     ->label('Thumbnail')
                     ->height(100)
                     ->width(100),
+                Tables\Columns\TextColumn::make('type')
+                    ->label('Video Type')
+                    ->sortable()
+                    ->searchable(),
+                Tables\Columns\TextColumn::make('duration_seconds')
+                    ->label('Duration (s)')
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('status')
                     ->color(fn($state) => match ($state) {
                         'pending' => 'warning',
