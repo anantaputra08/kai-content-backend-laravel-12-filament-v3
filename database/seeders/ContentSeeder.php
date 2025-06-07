@@ -20,9 +20,9 @@ class ContentSeeder extends Seeder
         $category3 = Category::where('name', 'Comedy')->first();
 
         // Ambil gerbong berdasarkan nama
-        $carriageA = Carriages::where('name', 'Gerbong A')->first();
-        $carriageB = Carriages::where('name', 'Gerbong B')->first();
-        $carriageC = Carriages::where('name', 'Gerbong C')->first();
+        $carriageA = Carriages::where('name', 'Gerbong 1')->first();
+        $carriageB = Carriages::where('name', 'Gerbong 2')->first();
+        $carriageC = Carriages::where('name', 'Gerbong 3')->first();
 
         // Buat konten
         $content1 = Content::create([
@@ -31,6 +31,7 @@ class ContentSeeder extends Seeder
             'file_path' => 'contents/cobaini.mp4',
             'thumbnail_path' => 'thumbnails/Screenshot 2025-04-15 at 20.34.54.png',
             'type' => 'video/mp4',
+            'duration_seconds' => 120,
             'status' => 'published',
             'airing_time_start' => now()->addHours(1),
             'airing_time_end' => now()->addHours(2),
@@ -47,6 +48,7 @@ class ContentSeeder extends Seeder
             'file_path' => 'contents/cFVN5jE0XWqfWcJxX1tFrN6mTJIODcLG5ZbV0TU3.mp4',
             'thumbnail_path' => 'thumbnails/dkPUFh1FnFBdwODHtqGsmmS7bjuFM7lbHF6TXRCj.jpg',
             'type' => 'video/mp4',
+            'duration_seconds' => 100,
             'status' => 'published',
             'airing_time_start' => now(),
             'airing_time_end' => now()->addHours(1),
@@ -63,6 +65,7 @@ class ContentSeeder extends Seeder
             'file_path' => 'contents/cFVN5jE0XWqfWcJxX1tFrN6mTJIODcLG5ZbV0TU3.mp4',
             'thumbnail_path' => 'thumbnails/cKlXQx18lWH9gB0LR07yfnSwDQo8b22JXbTiuYOD.jpg',
             'type' => 'video/mp4',
+            'duration_seconds' => 150,
             'status' => 'published',
             'airing_time_start' => now()->addHours(1),
             'airing_time_end' => now()->addDays(1),
@@ -83,8 +86,8 @@ class ContentSeeder extends Seeder
         // Relasikan konten dengan gerbong
         if ($carriageA && $carriageB && $carriageC) {
             $content1->carriages()->attach([$carriageA->id, $carriageB->id]);
-            $content2->carriages()->attach([$carriageB->id]);
-            $content3->carriages()->attach([$carriageC->id]);
+            $content2->carriages()->attach([$carriageB->id, $carriageC->id]);
+            $content3->carriages()->attach([$carriageC->id, $carriageA->id]);
         }
     }
 }
