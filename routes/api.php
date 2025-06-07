@@ -13,6 +13,7 @@ use App\Http\Controllers\ReactionController;
 use App\Http\Controllers\ReviewContentController;
 use App\Http\Controllers\StreamController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\VotingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -73,12 +74,90 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('reviews', [ReviewContentController::class, 'store']);
 });
 
+// // Voting routes
+// Route::prefix('voting')->group(function () {
+//     Route::get('/active', [VotingController::class, 'getActiveVoting']);
+//     Route::post('/vote', [VotingController::class, 'submitVote']);
+//     Route::get('/{voting}/results', [VotingController::class, 'getResults']);
+//     Route::get('/{voting}/winner', [VotingController::class, 'getWinnerAndSchedule']);
+    
+//     // Admin routes (bisa ditambah middleware auth)
+//     Route::post('/create', [VotingController::class, 'createVoting']);
+// });
 
-Route::group(['prefix' => 'stream'], function() {
+// // Update existing stream routes
+// Route::prefix('stream')->group(function () {
+//     Route::get('/now-playing', [StreamController::class, 'nowPlaying']);
+//     Route::get('/next', [StreamController::class, 'getNextContent']);
+//     Route::get('/status', [StreamController::class, 'getStreamStatus']);
+//     Route::post('/auto-start', [StreamController::class, 'autoStartVotedContent']);
+    
+//     Route::get('/{content}/playlist', [StreamController::class, 'playlist']);
+//     Route::post('/{content}/start', [StreamController::class, 'startStream']);
+//     Route::post('/{content}/stop', [StreamController::class, 'stopStream']);
+//     Route::get('/{content}/sync', [StreamController::class, 'syncData']);
+// });
+// Voting routes
+Route::prefix('voting')->group(function () {
+    // Mendapatkan voting aktif (untuk ditampilkan di client)
+    // Route::get('/active', [VotingController::class, 'getActiveVoting']);
+    Route::get('/carriages/{carriageId}/voting', [VotingController::class, 'getVotingForCarriage']);
+
+    // Mengirim vote (untuk user)
+    Route::post('/vote', [VotingController::class, 'submitVote']);
+
+    // Mendapatkan hasil voting untuk voting spesifik (mungkin setelah berakhir)
+    Route::get('/{voting}/results', [VotingController::class, 'getResults']);
+
+    // Ini adalah endpoint yang seharusnya dipanggil oleh **backend scheduler**
+    // BUKAN oleh frontend/client secara langsung.
+    // Frontend tidak perlu tahu tentang logic penjadwalan pemenang.
+    // Jika Anda tetap ingin ini bisa diakses, pertimbangkan middleware otentikasi admin yang ketat.
+    Route::post('/{voting}/end-and-schedule-winner', [VotingController::class, 'endVotingAndScheduleWinner']);
+
+    // Admin route untuk membuat voting baru
+    // Harusnya dilindungi dengan middleware otentikasi admin
+    Route::post('/create', [VotingController::class, 'createVoting']);
+});
+
+// Stream routes
+Route::prefix('stream')->group(function () {
+    // Mendapatkan status stream saat ini (live, next scheduled, voting info)
+    // Ini adalah endpoint utama yang akan dipanggil oleh aplikasi Android Anda secara periodik.
+    Route::get('/status/{carriage}', [StreamController::class, 'getStreamStatus']);
+
+    // Endpoint untuk mendapatkan konten yang sedang diputar (jika perlu terpisah dari status)
+    // Sebenarnya, 'status' sudah mencakup ini. Mungkin bisa dihapus jika redundan.
     Route::get('/now-playing', [StreamController::class, 'nowPlaying']);
+
+    // Endpoint untuk mendapatkan konten selanjutnya yang dijadwalkan
+    // Sebenarnya, 'status' sudah mencakup ini juga. Mungkin bisa dihapus jika redundan.
+    Route::get('/next', [StreamController::class, 'getNextContent']);
+
+    // Route untuk serve playlist HLS
     Route::get('/{content}/playlist', [StreamController::class, 'playlist']);
+
+    // Ini adalah endpoint yang seharusnya dipanggil oleh **backend scheduler**
+    // (di dalam Kernel.php atau Jobs) BUKAN oleh frontend/client.
+    // Contoh: ketika konten yang divoting akan mulai diputar.
     Route::post('/{content}/start', [StreamController::class, 'startStream']);
-    Route::post('/{content}/stop', [StreamController::class, 'stopStream'])->middleware('auth:sanctum');
+
+    // Ini juga adalah endpoint yang seharusnya dipanggil oleh **backend scheduler**
+    // ketika stream berakhir.
+    Route::post('/{content}/stop', [StreamController::class, 'stopStream']);
+
+    // Mendapatkan data sinkronisasi stream (posisi playback dll.)
+    Route::get('/{content}/sync', [StreamController::class, 'syncData']);
+
+    // Route ini sudah dihapus dari controller saya karena logicnya
+    // telah digabungkan ke dalam `manageStreamTransitions` di `Kernel.php`.
+    // Jangan letakkan ini di route yang bisa diakses publik.
+    // Route::post('/auto-start', [StreamController::class, 'autoStartVotedContent']);
+
+    // Ini adalah endpoint baru yang akan dipanggil oleh **backend scheduler**
+    // untuk mengelola transisi stream secara otomatis.
+    // Jangan letakkan ini di route yang bisa diakses publik.
+    Route::post('/manage-transitions', [StreamController::class, 'manageStreamTransitions']);
 });
 
 Route::get('/stream/test-now-playing', [StreamController::class, 'testNowPlaying']);
