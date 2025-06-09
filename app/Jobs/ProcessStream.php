@@ -17,6 +17,8 @@ class ProcessStream implements ShouldQueue
 
     protected $content;
 
+    public int $timeout = 300;
+
     public function __construct(Content $content)
     {
         $this->content = $content;

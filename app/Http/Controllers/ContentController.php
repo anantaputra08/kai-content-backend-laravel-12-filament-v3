@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ProcessStream;
 use App\Models\Category;
 use App\Models\Content;
 use Illuminate\Http\Request;
@@ -27,7 +28,7 @@ class ContentController extends Controller
                 $content->thumbnail_url = asset('storage/' . $content->thumbnail_path);
             }
             if ($content->file_path) {
-                $content->file_url = asset('storage/' . $content->file_path);
+                $content->file_url = route('contents.hls.playlist', ['content' => $content->id]);
             }
         });
 
@@ -64,7 +65,7 @@ class ContentController extends Controller
                 $content->thumbnail_url = asset('storage/' . $content->thumbnail_path);
             }
             if ($content->file_path) {
-                $content->file_url = asset('storage/' . $content->file_path);
+                $content->file_url = route('contents.hls.playlist', ['content' => $content->id]);   
             }
         });
 
@@ -164,6 +165,8 @@ class ContentController extends Controller
             }
         }
 
+        ProcessStream::dispatch($content);
+
         // Add thumbnail URL if it exists
         if ($content->thumbnail_path) {
             $content->thumbnail_url = asset('storage/' . $content->thumbnail_path);
@@ -256,15 +259,8 @@ class ContentController extends Controller
         // Log update data before applying it
         Log::info('Update data to be applied', $updateData);
 
-        // Handle file upload if present
         if ($request->hasFile('file')) {
-            // Delete old file
-            if ($content->file_path && Storage::disk('public')->exists($content->file_path)) {
-                Storage::disk('public')->delete($content->file_path);
-            }
-            // Save new file
-            $filePath = $request->file('file')->store('contents', 'public');
-            $updateData['file_path'] = $filePath;
+            ProcessStream::dispatch($content->fresh());
         }
 
         // Handle thumbnail upload if present
@@ -392,9 +388,11 @@ class ContentController extends Controller
 
         // Generate URL untuk streaming
         // $streamUrl = $baseUrl . '/api/content/stream/' . $content->id;
-        if ($content->file_path) {
-            $fileUrl = Storage::disk('public')->url($content->file_path);
-        }
+        // $content->file_url = $content->file_path
+        //     ? route('contents.hls.playlist', ['content' => $content->id])
+        //     : null;
+        
+        $fileUrl = route('contents.hls.playlist', ['content' => $content->id]);
 
         // Generate URL untuk thumbnail
         $thumbnailUrl = null;
@@ -527,4 +525,45 @@ class ContentController extends Controller
         ]);
     }
 
+    /**
+     * Menyajikan playlist HLS (.m3u8) untuk sebuah konten.
+     * URL segmen .ts di dalamnya akan diubah menjadi URL absolut.
+     * GET /api/contents/{content}/playlist.m3u8
+     */
+    public function getHlsPlaylist(Content $content)
+    {
+        try {
+            $playlistRelativePath = "streams/{$content->id}/playlist.m3u8";
+
+            if (!Storage::disk('public')->exists($playlistRelativePath)) {
+                // Catat di log jika file tidak ditemukan
+                Log::warning("HLS Playlist not found for content ID: {$content->id}. Path: {$playlistRelativePath}");
+                abort(404, "HLS playlist not found.");
+            }
+
+            $playlistContent = Storage::disk('public')->get($playlistRelativePath);
+
+            // Ganti nama segmen (misal: segment001.ts) dengan URL lengkapnya
+            $modifiedContent = preg_replace_callback(
+                '/^(segment[0-9]+\.ts)$/m',
+                function ($matches) use ($content) {
+                    return Storage::disk('public')->url("streams/{$content->id}/{$matches[1]}");
+                },
+                $playlistContent
+            );
+
+            return response($modifiedContent, 200)
+                ->header('Content-Type', 'application/vnd.apple.mpegurl');
+
+        } catch (\Exception $e) {
+            // Jika terjadi error APAPUN di dalam blok try, catat dengan detail
+            Log::critical("CRITICAL ERROR serving HLS playlist for content ID: {$content->id}", [
+                'error_message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            // Kembalikan response 500 dalam format JSON yang bersih
+            return response()->json(['error' => 'Server could not process the playlist.'], 500);
+        }
+    }
 }

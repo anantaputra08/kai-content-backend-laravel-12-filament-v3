@@ -54,6 +54,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('contents/search', [ContentController::class, 'search']);
     Route::get('contents/details/{id}', [ContentController::class, 'getContentDetails']);
     Route::apiResource('contents', ContentController::class);
+    Route::get('/contents/{content}/playlist.m3u8', [ContentController::class, 'getHlsPlaylist'])
+    ->name('contents.hls.playlist');
 
     Route::get('feedbacks/check', [FeedbackController::class, 'checkUserFeedback']);
     Route::apiResource('feedbacks', FeedbackController::class);
@@ -159,6 +161,9 @@ Route::prefix('stream')->group(function () {
     // Jangan letakkan ini di route yang bisa diakses publik.
     Route::post('/manage-transitions', [StreamController::class, 'manageStreamTransitions']);
 });
+
+Route::get('/contents/{content}/playlist.m3u8', [ContentController::class, 'getHlsPlaylist'])
+    ->name('contents.hls.playlist');
 
 Route::get('/stream/test-now-playing', [StreamController::class, 'testNowPlaying']);
 
