@@ -16,27 +16,29 @@ use Illuminate\Support\Facades\Storage;
 class VotingController extends Controller
 {
     /**
-     * Menampilkan sesi voting yang aktif, atau membuatnya berdasarkan status stream.
-     * 1. Jika ada voting aktif, tampilkan.
-     * 2. Jika tidak ada, tapi ada stream live, buat voting baru sesuai sisa durasi stream.
-     * 3. Jika tidak ada keduanya (idle), buat voting baru dengan durasi default.
+     * Get voting for a specific carriage.
+     * This function checks if there is an active voting for the carriage.
+     * If not, it checks if there is a live content in the carriage.
+     * If there is live content, it creates a new voting with the remaining time of the live content.
+     * If there is no live content, it creates a new voting with a default duration.
      */
     public function getVotingForCarriage($carriageId)
     {
-        $carriage = Carriages::with(['contents' => function ($query) {
-            $query->where('status', 'published');
-        }])->findOrFail($carriageId);
+        $carriage = Carriages::with([
+            'contents' => function ($query) {
+                $query->where('status', 'published');
+            }
+        ])->findOrFail($carriageId);
 
-        // 1. Cek dulu apakah sudah ada voting yang aktif untuk carriage ini.
         $activeVoting = Voting::with(['options.content'])
             ->where('carriages_id', $carriageId)
             ->where('is_active', true)
             ->where('end_time', '>', now())
             ->first();
 
-        // Jika TIDAK ADA voting aktif, barulah kita terapkan logika baru.
+        // Check if there is no active voting
         if (!$activeVoting) {
-            // 2. Cek apakah ada konten yang sedang LIVE di carriage ini.
+            // Check if there is any live content in the carriage
             $liveContent = Content::where('is_live', true)
                 ->whereHas('carriages', function ($query) use ($carriageId) {
                     $query->where('carriages.id', $carriageId);
@@ -44,24 +46,22 @@ class VotingController extends Controller
                 ->where('airing_time_end', '>', now()) // Pastikan stream belum berakhir
                 ->first();
 
-            // 3. Jika ADA konten yang live...
+            // If there is live content
             if ($liveContent) {
-                // Hitung sisa waktu tayang dalam detik
                 $remainingSeconds = now()->diffInSeconds($liveContent->airing_time_end, false);
 
-                // Buat voting baru dengan durasi sisa waktu tersebut
                 if ($carriage->contents->count() >= 2) {
                     $newVoting = $this->createVotingForCarriageInternal($carriage, $remainingSeconds);
                     if ($newVoting) {
                         $activeVoting = $newVoting->load(['options.content']);
                     }
                 }
-            } 
-            // 4. Jika TIDAK ADA konten yang live (carriage sedang idle)...
+            }
+            // If there is no live content or no valid remaining time
             else {
-                // Buat voting baru dengan durasi default untuk memulai siklus.
+                // Only create if there are at least 2 contents in the carriage
                 if ($carriage->contents->count() >= 2) {
-                    $newVoting = $this->createVotingForCarriageInternal($carriage); // Durasi default akan digunakan
+                    $newVoting = $this->createVotingForCarriageInternal($carriage);
                     if ($newVoting) {
                         $activeVoting = $newVoting->load(['options.content']);
                     }
@@ -69,7 +69,6 @@ class VotingController extends Controller
             }
         }
 
-        // Bagian ini tidak berubah, hanya memformat response
         $userIdentifier = $this->getUserIdentifier(request());
         $hasVoted = false;
         if ($activeVoting) {
@@ -97,17 +96,21 @@ class VotingController extends Controller
     }
 
     /**
-     * (INTERNAL) Fungsi untuk membuat voting baru untuk sebuah carriage.
-     * Sekarang dapat menerima durasi spesifik dalam detik.
+     * (HELPER) Create a new voting for a carriage.
+     * This function is used internally to create a voting for a carriage.
+     * It accepts a Carriages model and an optional duration in seconds.
+     * If the duration is not provided, it defaults to 60 seconds.
+     * It creates a new Voting model and VotingOption models for each content in the carriage.
+     * It returns the created Voting model.
      */
     private function createVotingForCarriageInternal(Carriages $carriage, ?int $durationSeconds = null)
     {
         $voting = null;
         DB::transaction(function () use ($carriage, $durationSeconds, &$voting) {
-            // Gunakan durasi yang diberikan, atau fallback ke 300 detik (5 menit) jika null
-            $actualDuration = $durationSeconds ?? 60; 
-            
-            // Jangan buat voting jika durasi tidak valid (misal, sisa waktu tayang sudah habis)
+            // Duration in seconds, default to 60 seconds if not provided
+            $actualDuration = $durationSeconds ?? 60;
+
+            // Do not create voting if duration is less than or equal to 0
             if ($actualDuration <= 0) {
                 return;
             }
@@ -118,7 +121,7 @@ class VotingController extends Controller
                 'description' => 'Choose your favorite content to be played next.',
                 'is_active' => true,
                 'start_time' => now(),
-                'end_time' => now()->addSeconds($actualDuration) // Gunakan detik untuk presisi
+                'end_time' => now()->addSeconds($actualDuration)
             ]);
 
             foreach ($carriage->contents as $content) {
@@ -132,12 +135,14 @@ class VotingController extends Controller
         if ($voting) {
             Log::info("Auto-created new voting poll ID: {$voting->id} for carriage '{$carriage->name}'.");
         }
-        
+
         return $voting;
     }
 
     /**
-     * (HELPER) Merapikan data voting untuk response JSON.
+     * Format the voting response for API output.
+     * This function formats the voting data into a structured array for API responses.
+     * It includes the voting title, description, end time, total votes, and options with their vote counts and percentages.
      */
     private function formatVotingResponse($voting, $hasVoted = false)
     {
@@ -181,27 +186,26 @@ class VotingController extends Controller
      */
     public function createVotingForCarriage(Carriages $carriage)
     {
-        // 1. Check for any other active voting to avoid conflicts
+        // Check if there is already an active voting
         if (Voting::where('is_active', true)->exists()) {
             Log::warning("Attempted to create a new voting for carriage {$carriage->id}, but another voting is already active.");
             return null; // Exit if a voting is already running
         }
 
-        // 2. Get all eligible content from the carriage
         $eligibleContents = $carriage->contents()
             ->where('status', 'published')
             ->get();
 
         if ($eligibleContents->count() < 2) {
             Log::error("Cannot create voting for carriage '{$carriage->name}'. It needs at least 2 published contents.");
-            // Here you might want to schedule a default content or log an admin alert
+
             return null;
         }
 
         $voting = null;
         DB::transaction(function () use ($carriage, $eligibleContents, &$voting) {
-            // 3. Create the voting poll
-            $durationMinutes = 1; // Set a standard voting duration (e.g., 5 minutes)
+            // Default duration for voting in minutes
+            $durationMinutes = 1;
 
             $voting = Voting::create([
                 'title' => 'Vote for the next content in ' . $carriage->name . '!',
@@ -211,7 +215,6 @@ class VotingController extends Controller
                 'end_time' => now()->addMinutes($durationMinutes)
             ]);
 
-            // 4. Create options for each content
             foreach ($eligibleContents as $content) {
                 VotingOption::create([
                     'voting_id' => $voting->id,
@@ -232,28 +235,26 @@ class VotingController extends Controller
     {
         $voting = Voting::with('options.content')->findOrFail($votingId);
 
-        // Jangan proses jika sudah tidak aktif (mencegah eksekusi ganda)
+        // Check if voting is already inactive
         if (!$voting->is_active) {
             Log::info("Voting ID {$votingId} is already inactive. Skipping.");
             return response()->json(['message' => 'Voting already processed.']);
         }
 
-        // 1. Nonaktifkan voting
         $voting->update(['is_active' => false]);
 
-        // 2. Tentukan pemenang
         $winnerOption = $voting->options()
             ->orderByDesc('vote_count')
             ->orderBy('created_at', 'asc') // Tie-breaker: opsi yang lebih dulu dibuat menang
             ->first();
 
-        // 3. Tangani jika tidak ada yang vote
+        // If no votes were cast, pick a random content as a fallback
+        // This is to ensure that we always have a content to stream, even if no one voted
         if (!$winnerOption || $winnerOption->vote_count === 0) {
             Log::warning("Voting ID {$votingId} ended with no votes. Picking a random content as a fallback.");
-            // Fallback: Pilih konten secara acak dari opsi yang ada
+
             $winnerOption = $voting->options()->inRandomOrder()->first();
-            
-            // Jika bahkan tidak ada opsi, batalkan
+
             if (!$winnerOption) {
                 Log::error("Voting ID {$votingId} has no options. Cannot start any stream.");
                 return response()->json(['message' => 'Voting ended with no options.'], 422);
@@ -264,20 +265,18 @@ class VotingController extends Controller
 
         Log::info("Voting ID {$votingId} ended. Winner is '{$winnerContent->title}'. Preparing to start stream immediately.");
 
-        // 4. Panggil StreamController untuk memulai stream
-        // Pastikan Anda sudah meng-import StreamController di atas: use App\Http\Controllers\StreamController;
         $streamController = new StreamController();
-        return $streamController->startStream($winnerContent); // Langsung return response dari startStream
+        return $streamController->startStream($winnerContent);
     }
-    
+
     /**
      * Get active voting with options
      */
-    public function getActiveVoting(Request $request) // Inject Request
+    public function getActiveVoting(Request $request)
     {
         $voting = Voting::with([
             'options.content' => function ($query) {
-                $query->select('id', 'title', 'thumbnail_path', 'description', 'duration_seconds'); // Include duration
+                $query->select('id', 'title', 'thumbnail_path', 'description', 'duration_seconds');
             }
         ])
             ->where('is_active', true)
@@ -307,7 +306,7 @@ class VotingController extends Controller
                 'title' => $voting->title,
                 'description' => $voting->description,
                 'end_time' => $voting->end_time->toIso8601String(),
-                'total_votes' => $totalVotes, // Ensure this is accurate
+                'total_votes' => $totalVotes,
                 'has_voted' => $hasVoted,
                 'options' => $voting->options->map(function ($option) use ($totalVotes) {
                     $percentage = $totalVotes > 0 ? round(($option->vote_count / $totalVotes) * 100, 2) : 0;
@@ -316,12 +315,12 @@ class VotingController extends Controller
                         'content' => [
                             'id' => $option->content->id,
                             'title' => $option->content->title,
-                            'thumbnail' => url(Storage::url($option->content->thumbnail_path)), // Use Storage::url
+                            'thumbnail' => url(Storage::url($option->content->thumbnail_path)),
                             'description' => $option->content->description,
-                            'duration_seconds' => $option->content->duration_seconds // Pass duration
+                            'duration_seconds' => $option->content->duration_seconds
                         ],
                         'vote_count' => $option->vote_count,
-                        'vote_percentage' => $percentage // Calculate here or use accessor
+                        'vote_percentage' => $percentage
                     ];
                 })
             ]
@@ -340,9 +339,8 @@ class VotingController extends Controller
         $option = VotingOption::with('voting')->findOrFail($request->voting_option_id);
         $voting = $option->voting;
 
-        // Check if voting is still active
-        // Assuming Voting model has an isActive() method
-        if (!$voting->is_active || $voting->end_time < now()) { // Also check end_time directly
+        // Check if voting is active
+        if (!$voting->is_active || $voting->end_time < now()) {
             return response()->json([
                 'message' => 'Voting is no longer active or has ended.'
             ], 422);
@@ -362,7 +360,6 @@ class VotingController extends Controller
         }
 
         DB::transaction(function () use ($option, $userIdentifier) {
-            // Record the vote
             UserVote::create([
                 'voting_id' => $option->voting_id,
                 'voting_option_id' => $option->id,
@@ -388,7 +385,7 @@ class VotingController extends Controller
             'message' => 'Vote submitted successfully',
             'option_id' => $option->id,
             'new_vote_count' => $option->fresh()->vote_count,
-            'updated_voting_options' => $updatedOptions // Return updated percentages
+            'updated_voting_options' => $updatedOptions
         ]);
     }
 
@@ -404,7 +401,7 @@ class VotingController extends Controller
         ])
             ->findOrFail($votingId);
 
-        $totalVotes = $voting->options->sum('vote_count'); // Calculate total votes
+        $totalVotes = $voting->options->sum('vote_count');
 
         $results = $voting->options
             ->sortByDesc('vote_count')
@@ -414,7 +411,7 @@ class VotingController extends Controller
                     'content' => [
                         'id' => $option->content->id,
                         'title' => $option->content->title,
-                        'thumbnail' => url(Storage::url($option->content->thumbnail_path)), // Use Storage::url
+                        'thumbnail' => url(Storage::url($option->content->thumbnail_path)),
                         'duration_seconds' => $option->content->duration_seconds
                     ],
                     'vote_count' => $option->vote_count,
@@ -426,8 +423,8 @@ class VotingController extends Controller
             'voting' => [
                 'id' => $voting->id,
                 'title' => $voting->title,
-                'total_votes' => $totalVotes, // Use calculated total votes
-                'is_active' => $voting->is_active && $voting->end_time >= now(), // Check actual active status
+                'total_votes' => $totalVotes,
+                'is_active' => $voting->is_active && $voting->end_time >= now(),
                 'end_time' => $voting->end_time->toIso8601String()
             ],
             'results' => $results
@@ -444,13 +441,13 @@ class VotingController extends Controller
             'description' => 'nullable|string',
             'content_ids' => 'required|array|min:2|max:5',
             'content_ids.*' => 'exists:contents,id',
-            'duration_minutes' => 'required|integer|min:5|max:1440' // Duration in minutes (e.g., 5 min to 24 hours)
+            'duration_minutes' => 'required|integer|min:5|max:1440'
         ]);
 
         // Validate contents are eligible for voting (not currently live, published)
         $contents = Content::whereIn('id', $request->content_ids)
             ->where('status', 'published')
-            ->where('is_live', false) // Ensure content is not currently live
+            ->where('is_live', false)
             ->get();
 
         if ($contents->count() !== count($request->content_ids)) {
@@ -479,7 +476,7 @@ class VotingController extends Controller
                 'description' => $request->description,
                 'is_active' => true,
                 'start_time' => now(),
-                'end_time' => now()->addMinutes($request->duration_minutes) // Use minutes for finer control
+                'end_time' => now()->addMinutes($request->duration_minutes)
             ]);
 
             // Create voting options
@@ -494,7 +491,7 @@ class VotingController extends Controller
 
         return response()->json([
             'message' => 'Voting created successfully',
-            'voting_id' => $voting->id, // Return new voting ID
+            'voting_id' => $voting->id,
             'end_time' => $voting->end_time->toIso8601String()
         ]);
     }
@@ -524,7 +521,7 @@ class VotingController extends Controller
             Log::warning("Voting ID: {$votingId} ended with no votes or no clear winner. No content scheduled.");
             return response()->json([
                 'message' => 'Voting ended, but no votes received or no clear winner. No content scheduled.'
-            ], 200); // Not an error, but a warning
+            ], 200);
         }
 
         // Determine when the current stream ends to schedule the winner right after it.
@@ -532,13 +529,11 @@ class VotingController extends Controller
         $nextStreamTime = now()->addMinutes(5); // Default to 5 minutes from now if no current stream
 
         if ($currentLiveContent && $currentLiveContent->airing_time_end > now()) {
-            // Schedule winner to start 1-2 minutes after current stream ends, or immediately if stream is about to end
-            $nextStreamTime = $currentLiveContent->airing_time_end->addMinutes(2);
+            $nextStreamTime = $currentLiveContent->airing_time_end->addMinutes();
             Log::info("Scheduling winner '{$winner->content->title}' after current stream ends at {$currentLiveContent->airing_time_end->toIso8601String()}. New start: {$nextStreamTime->toIso8601String()}");
         } else {
             Log::info("No current stream. Scheduling winner '{$winner->content->title}' to start at {$nextStreamTime->toIso8601String()}.");
         }
-
 
         // Schedule the winner for next stream
         // Update winner content's airing_time_start and airing_time_end
@@ -551,7 +546,7 @@ class VotingController extends Controller
         }
 
         $winner->content->update([
-            'is_live' => false, // Not live yet, just scheduled
+            'is_live' => false,
             'airing_time_start' => $nextStreamTime,
             'airing_time_end' => $nextStreamTime->copy()->addSeconds($winner->content->duration_seconds)
         ]);
@@ -581,8 +576,6 @@ class VotingController extends Controller
      */
     private function getUserIdentifier(Request $request): string
     {
-        // For production, consider using a more robust user identification,
-        // especially if you have user authentication (e.g., Auth::id()).
         return $request->ip();
     }
 }

@@ -8,11 +8,11 @@ use App\Models\Carriages;
 use App\Models\Content;
 use App\Models\UserVote;
 use App\Models\Voting;
-use App\Models\VotingOption; // Import VotingOption
+use App\Models\VotingOption;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
-use Illuminate\Http\Request; // Import Request jika belum ada
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class StreamController extends Controller
@@ -23,12 +23,12 @@ class StreamController extends Controller
      * @param \App\Models\Carriages $carriage
      * @return \Illuminate\Http\JsonResponse
      */
-    public function nowPlaying(Carriages $carriage) // 1. Terima $carriage
+    public function nowPlaying(Carriages $carriage)
     {
         $now = now();
-        $carriageId = $carriage->id; // Ambil ID untuk digunakan di dalam closure
+        // Get the carriage ID directly from the model
+        $carriageId = $carriage->id;
 
-        // 2. Tambahkan 'whereHas' untuk filter berdasarkan carriage
         $content = Content::where('status', 'published')
             ->where('is_live', true)
             ->where('airing_time_start', '<=', $now)
@@ -39,16 +39,13 @@ class StreamController extends Controller
             ->first();
 
         if (!$content) {
-            // Jika tidak ada konten yang live di carriage ini, cukup kembalikan pesan
-            // bahwa tidak ada yang tayang. Konten selanjutnya akan ditentukan oleh voting.
+            // If no content is currently airing, return a 200 OK response
             return response()->json([
                 'message' => "No content is currently airing on '{$carriage->name}'.",
                 'is_live' => false,
                 'server_time' => $now->toIso8601String(),
-                // Kembalikan 'next_content' sebagai null agar konsisten dengan struktur data
-                // yang diharapkan oleh klien (Android).
                 'next_content' => null
-            ], 200); // 200 OK karena ini adalah status yang valid, bukan error.
+            ], 200);
         }
 
         $playbackPosition = $now->diffInSeconds($content->airing_time_start);
@@ -75,8 +72,7 @@ class StreamController extends Controller
      */
     public function playlist(Content $content)
     {
-        // Pastikan file_path di content sudah berisi path yang benar ke playlist HLS
-        // Misalnya: 'public/streams/{id}/playlist.m3u8'
+        // 'public/streams/{id}/playlist.m3u8'
         $playlistPath = "public/streams/{$content->id}/playlist.m3u8";
         $fullPath = storage_path("app/{$playlistPath}");
 
@@ -90,8 +86,7 @@ class StreamController extends Controller
         $modifiedContent = preg_replace_callback(
             '/^(.*\.ts)$/m',
             function ($matches) use ($content) {
-                // Pastikan URL storage ini sesuai dengan konfigurasi Anda
-                // Biasanya, ini akan mengarah ke direktori yang disymlink ke public
+                
                 return url("/storage/streams/{$content->id}/{$matches[1]}");
             },
             $playlistContent
@@ -99,7 +94,7 @@ class StreamController extends Controller
 
         return response($modifiedContent, 200)
             ->header('Content-Type', 'application/x-mpegURL')
-            ->header('Cache-Control', 'no-cache, no-store, must-revalidate') // Improved cache control
+            ->header('Cache-Control', 'no-cache, no-store, must-revalidate')
             ->header('Pragma', 'no-cache')
             ->header('Expires', '0');
     }
@@ -138,8 +133,8 @@ class StreamController extends Controller
         // Update content status to live
         $content->update([
             'is_live' => true,
-            'stream_key' => Str::random(32), // Generate unique stream key (if still needed)
-            'stream_url' => url("/api/stream/{$content->id}/playlist"), // Dynamic HLS playlist URL
+            'stream_key' => Str::random(32),
+            'stream_url' => url("/api/stream/{$content->id}/playlist"),
             'airing_time_start' => $startTime,
             'airing_time_end' => $endTime
         ]);
@@ -172,13 +167,11 @@ class StreamController extends Controller
 
         $content->update([
             'is_live' => false,
-            // 'airing_time_end' can be updated here if not already set by 'startStream'
-            // or if it was set for a longer duration than actual playback
         ]);
 
         // Dispatch a job to clean up resources if necessary
         // For example, if HLS segments are temporary.
-        // StopStream::dispatch($content); // Removed for now, depends on implementation details
+        // StopStream::dispatch($content);
 
         return response()->json([
             'message' => 'Stream stopped successfully',
@@ -220,7 +213,7 @@ class StreamController extends Controller
         $now = now();
         Log::info("Running manageStreamTransitions...");
 
-        // Prioritas 1: Hentikan stream yang sudah selesai waktunya.
+        // Stop any streams that have ended
         $finishedStream = Content::where('is_live', true)
             ->where('airing_time_end', '<=', $now)
             ->first();
@@ -228,19 +221,19 @@ class StreamController extends Controller
         if ($finishedStream) {
             Log::info("Stream '{$finishedStream->title}' has ended. Stopping it.");
             $this->stopStream($finishedStream);
-            // Kita berhenti di sini, siklus selanjutnya (membuat vote) akan diurus oleh getVotingForCarriage
-            // saat klien melakukan request.
+
             return;
         }
 
-        // Prioritas 2: Cari voting yang sudah selesai waktunya TAPI masih aktif.
+        // Check for finished votings
         $finishedVoting = Voting::where('is_active', true)
             ->where('end_time', '<=', $now)
             ->first();
 
         if ($finishedVoting) {
             Log::info("Voting '{$finishedVoting->title}' (ID: {$finishedVoting->id}) has ended. Determining winner and starting stream.");
-            // Panggil fungsi eksekutor di VotingController
+            // Get the winning option
+            // Call VotingController to handle the end of voting
             $votingController = new \App\Http\Controllers\VotingController();
             $votingController->endVotingAndStartWinner($finishedVoting->id);
             return;
@@ -262,24 +255,25 @@ class StreamController extends Controller
     public function getStreamStatus(Request $request, Carriages $carriage)
     {
         $this->manageStreamTransitions();
-        // 1. Dapatkan status stream global
+
+        // Get the currently playing content for the specified carriage
         $nowPlayingResponse = $this->nowPlaying($carriage);
         $nowPlayingData = $nowPlayingResponse->getData();
 
-        // 2. Dapatkan data voting & carriage dari VotingController
+        // Get voting data for the specified carriage
         $votingController = new VotingController();
         $votingResponse = $votingController->getVotingForCarriage($carriage->id);
 
-        // Ambil semua data dari response (bukan hanya 'voting')
+        // Get all data from the voting response
         $responseData = $votingResponse->getData(true);
         $activeVotingData = $responseData['voting'];
-        $carriageData = $responseData['carriage']; // <-- Ambil data carriage
+        $carriageData = $responseData['carriage'];
 
-        // 3. Gabungkan semua data untuk response akhir
+        // merge the now playing data with the voting data
         $data = [
             'now_playing' => $nowPlayingData,
             'active_voting' => $activeVotingData,
-            'carriage' => $carriageData, // <-- SERTAKAN carriage di sini
+            'carriage' => $carriageData,
             'server_time' => now()->toIso8601String()
         ];
 
