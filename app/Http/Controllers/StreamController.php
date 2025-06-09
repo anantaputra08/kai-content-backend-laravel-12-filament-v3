@@ -72,28 +72,29 @@ class StreamController extends Controller
      */
     public function playlist(Content $content)
     {
-        // 'public/streams/{id}/playlist.m3u8'
-        $playlistPath = "public/streams/{$content->id}/playlist.m3u8";
-        $fullPath = storage_path("app/{$playlistPath}");
+        // Path ke playlist di dalam storage
+        $playlistRelativePath = "streams/{$content->id}/playlist.m3u8";
 
-        if (!file_exists($fullPath)) {
-            abort(404, "Stream playlist not found for content ID: {$content->id}. Path: {$fullPath}");
+        // Pastikan file ada di disk 'public'
+        if (!Storage::disk('public')->exists($playlistRelativePath)) {
+            abort(404, "Stream playlist not found for content ID: {$content->id}.");
         }
 
-        $playlistContent = file_get_contents($fullPath);
+        // Baca isi playlist
+        $playlistContent = Storage::disk('public')->get($playlistRelativePath);
 
-        // Replace relative paths with absolute URLs for .ts segments
+        // Ganti nama segmen (misal: segment001.ts) dengan URL lengkapnya
         $modifiedContent = preg_replace_callback(
-            '/^(.*\.ts)$/m',
+            '/^(segment[0-9]+\.ts)$/m', // Regex yang lebih spesifik
             function ($matches) use ($content) {
-                
-                return url("/storage/streams/{$content->id}/{$matches[1]}");
+                // Gunakan Storage::url() untuk mendapatkan URL yang benar
+                return Storage::disk('public')->url("streams/{$content->id}/{$matches[1]}");
             },
             $playlistContent
         );
 
         return response($modifiedContent, 200)
-            ->header('Content-Type', 'application/x-mpegURL')
+            ->header('Content-Type', 'application/vnd.apple.mpegurl') // Tipe MIME yang lebih standar
             ->header('Cache-Control', 'no-cache, no-store, must-revalidate')
             ->header('Pragma', 'no-cache')
             ->header('Expires', '0');
@@ -139,8 +140,8 @@ class StreamController extends Controller
             'airing_time_end' => $endTime
         ]);
 
-        ProcessStream::dispatch($content);
-        Log::info("Successfully started stream for '{$content->title}' (ID: {$content->id}).");
+        // ProcessStream::dispatch($content);
+        // Log::info("Successfully started stream for '{$content->title}' (ID: {$content->id}).");
 
         return response()->json([
             'message' => 'Virtual live stream started',

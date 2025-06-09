@@ -24,41 +24,43 @@ class ProcessStream implements ShouldQueue
 
     public function handle()
     {
-        // Path input (sesuaikan dengan struktur XAMPP)
-        $inputPath = $this->getAbsolutePath($this->content->file_path);
-
-        // Path output (di dalam storage Laravel)
-        $outputDir = Storage::path("streams/{$this->content->id}");
-        $playlistPath = "{$outputDir}/playlist.m3u8";
-
-        // Buat direktori jika belum ada
-        if (!file_exists($outputDir)) {
-            mkdir($outputDir, 0755, true);
+        if (!Storage::disk('public')->exists($this->content->file_path)) {
+            Log::error("Input file not found for content {$this->content->id}: " . $this->content->file_path);
+            $this->fail(new \Exception("Input file not found."));
+            return;
         }
+        $inputPath = Storage::disk('public')->path($this->content->file_path);
 
-        // Konversi ke HLS
-        $command = "ffmpeg -i {$inputPath} -codec: copy -start_number 0 -hls_time 10 -hls_list_size 0 -hls_base_url " . url('/storage/streams/' . $this->content->id . '/') . " -f hls {$playlistPath}";
+        $outputDirRelative = "streams/{$this->content->id}";
+        Storage::disk('public')->makeDirectory($outputDirRelative);
+        $playlistPath = Storage::disk('public')->path("{$outputDirRelative}/playlist.m3u8");
+
+        // Perintah FFMPEG
+        // - "-c:v libx264 -c:a aac" : Melakukan re-encoding ke format standar HLS.
+        // - "-hls_playlist_type vod" : Menandakan ini adalah Video-on-Demand.
+        // - "-hls_segment_filename" : Pola penamaan file .ts yang standar.
+        // - Kita HAPUS -hls_base_url agar URL ditangani oleh Laravel.
+        // - Kita tambahkan quote (") di sekitar path untuk menangani spasi di nama file.
+        $command = sprintf(
+            'ffmpeg -i "%s" -c:v libx264 -c:a aac -hls_time 10 -hls_playlist_type vod -hls_segment_filename "%s/segment%%03d.ts" -start_number 0 "%s"',
+            $inputPath,
+            Storage::disk('public')->path($outputDirRelative),
+            $playlistPath
+        );
+
         exec($command, $output, $returnCode);
 
         if ($returnCode !== 0) {
             Log::error("FFmpeg error for content {$this->content->id}", [
                 'command' => $command,
-                'output' => $output,
+                'output' => implode("\n", $output),
                 'return_code' => $returnCode
             ]);
-            throw new \Exception("Failed to process stream");
+            
+            $this->fail(new \Exception("FFmpeg failed with return code: " . $returnCode));
+            return;
         }
 
-        // Update stream URL di database
-        $this->content->update([
-            'stream_url' => url("api/streams/{$this->content->id}/playlist.m3u8")
-        ]);
-    }
-
-    protected function getAbsolutePath($storagePath)
-    {
-        // Konversi path storage ke absolute path di sistem
-        $relativePath = str_replace('storage/', '', $storagePath);
-        return base_path("storage/app/public/{$relativePath}");
+        Log::info("Successfully processed HLS for content {$this->content->id}");
     }
 }

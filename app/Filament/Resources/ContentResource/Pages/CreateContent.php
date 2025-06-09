@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\ContentResource\Pages;
 
 use App\Filament\Resources\ContentResource;
+use App\Jobs\ProcessStream;
 use Filament\Actions;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Storage;
@@ -10,11 +11,11 @@ use Illuminate\Support\Facades\Storage;
 class CreateContent extends CreateRecord
 {
     protected static string $resource = ContentResource::class;
-    // protected function mutateFormDataBeforeCreate(array $data): array
-    // {
-    //     $data['type'] = Storage::disk('public')->mimeType($data['file_path']);
+    
+    protected function afterCreate(): void
+    {
+        $content = $this->record;
 
-    //     return $data;
-    // }
-
+        ProcessStream::dispatch($content);
+    }
 }
