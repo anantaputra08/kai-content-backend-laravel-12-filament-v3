@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\FavoriteResource\Pages;
-use App\Filament\Resources\FavoriteResource\RelationManagers;
-use App\Models\Favorite;
+use App\Filament\Resources\TrainResource\Pages;
+use App\Filament\Resources\TrainResource\RelationManagers;
+use App\Models\Train;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -13,34 +13,23 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
-class FavoriteResource extends Resource
+class TrainResource extends Resource
 {
-    protected static ?string $model = Favorite::class;
-
-    protected static ?string $navigationIcon = 'hugeicons-play-list-favourite-02';
-
+    protected static ?string $model = Train::class;
+    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
     protected static ?string $navigationGroup = 'Content Management';
-    
-    protected static ?int $navigationSort = 5;
+    protected static ?int $navigationSort = 3;
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                Forms\Components\Select::make('user_id')
-                    ->label('User')
-                    ->relationship('user', 'name')
-                    ->preload()
-                    ->reactive()
-                    ->searchable()
-                    ->required(),
-                Forms\Components\Select::make('content_id')
-                    ->label('Content')
-                    ->relationship('content', 'title')
-                    ->searchable()
-                    ->preload()
-                    ->reactive()
-                    ->required(),
+                Forms\Components\TextInput::make('name')
+                    ->required()
+                    ->maxLength(255),
+                Forms\Components\TextInput::make('route')
+                    ->required()
+                    ->maxLength(255),
             ]);
     }
 
@@ -48,15 +37,14 @@ class FavoriteResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('user.name')
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('content.title')
-                    ->sortable(),
+                Tables\Columns\TextColumn::make('name')
+                    ->searchable(),
+                Tables\Columns\TextColumn::make('route')
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('created_at')
-                    ->label('Added At')
                     ->dateTime()
                     ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: false),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('updated_at')
                     ->dateTime()
                     ->sortable()
@@ -85,9 +73,9 @@ class FavoriteResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListFavorites::route('/'),
-            'create' => Pages\CreateFavorite::route('/create'),
-            'edit' => Pages\EditFavorite::route('/{record}/edit'),
+            'index' => Pages\ListTrains::route('/'),
+            'create' => Pages\CreateTrain::route('/create'),
+            'edit' => Pages\EditTrain::route('/{record}/edit'),
         ];
     }
 }

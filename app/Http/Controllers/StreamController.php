@@ -6,6 +6,7 @@ use App\Jobs\ProcessStream;
 use App\Jobs\StopStream;
 use App\Models\Carriages;
 use App\Models\Content;
+use App\Models\Train;
 use App\Models\UserVote;
 use App\Models\Voting;
 use App\Models\VotingOption;
@@ -13,6 +14,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class StreamController extends Controller
@@ -212,35 +214,66 @@ class StreamController extends Controller
     public function manageStreamTransitions()
     {
         $now = now();
-        Log::info("Running manageStreamTransitions...");
+        Log::info("Running manageStreamTransitions at {$now}");
 
-        // Stop any streams that have ended
-        $finishedStream = Content::where('is_live', true)
-            ->where('airing_time_end', '<=', $now)
-            ->first();
+        DB::transaction(function () use ($now) {
+            // Lock relevant rows to prevent race conditions
+            $finishedStream = Content::where('is_live', true)
+                ->where('airing_time_end', '<=', $now)
+                ->lockForUpdate()
+                ->first();
 
-        if ($finishedStream) {
-            Log::info("Stream '{$finishedStream->title}' has ended. Stopping it.");
-            $this->stopStream($finishedStream);
+            if ($finishedStream) {
+                Log::info("Stream '{$finishedStream->title}' has ended. Stopping it.");
+                $this->stopStream($finishedStream);
+                
+                // Create new voting only after stream is fully stopped
+                $this->createNewVotingAfterStream($finishedStream);
+                return;
+            }
 
-            return;
+            // Check for finished votings with proper locking
+            $finishedVoting = Voting::where('is_active', true)
+                ->where('end_time', '<=', $now)
+                ->lockForUpdate()
+                ->first();
+
+            if ($finishedVoting) {
+                Log::info("Processing finished voting ID: {$finishedVoting->id}");
+                $votingController = new VotingController();
+                $votingController->endVotingAndStartWinner($finishedVoting->id);
+                return;
+            }
+        });
+
+        Log::info("No transitions needed at {$now}");
+    }
+
+    private function createNewVotingAfterStream(Content $finishedContent)
+    {
+        $trainId = $finishedContent->trains()->first()->id;
+        $carriageId = $finishedContent->carriages()->first()->id;
+
+        $eligibleContents = Content::where('status', 'published')
+            ->where('id', '!=', $finishedContent->id) // Exclude just finished content
+            ->whereHas('trains', fn($q) => $q->where('trains.id', $trainId))
+            ->whereHas('carriages', fn($q) => $q->where('carriages.id', $carriageId))
+            ->get();
+
+        if ($eligibleContents->count() >= 2) {
+            $train = Train::find($trainId);
+            $carriage = Carriages::find($carriageId);
+            
+            $votingController = new VotingController();
+            $votingController->createVotingForLocationInternal(
+                $train,
+                $carriage,
+                $eligibleContents,
+                $finishedContent->duration_seconds // Use same duration as finished content
+            );
+        } else {
+            Log::warning("Not enough eligible contents (need 2, found {$eligibleContents->count()}) for new voting");
         }
-
-        // Check for finished votings
-        $finishedVoting = Voting::where('is_active', true)
-            ->where('end_time', '<=', $now)
-            ->first();
-
-        if ($finishedVoting) {
-            Log::info("Voting '{$finishedVoting->title}' (ID: {$finishedVoting->id}) has ended. Determining winner and starting stream.");
-            // Get the winning option
-            // Call VotingController to handle the end of voting
-            $votingController = new \App\Http\Controllers\VotingController();
-            $votingController->endVotingAndStartWinner($finishedVoting->id);
-            return;
-        }
-
-        Log::info("No finished streams or votings to process at this time.");
     }
 
     /**
@@ -279,5 +312,89 @@ class StreamController extends Controller
         ];
 
         return response()->json($data);
+    }
+    /**
+     * Get the stream and voting status for a specific train and carriage.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getStatusForLocation(Request $request)
+    {
+        $validator = validator($request->all(), [
+            'train_id' => 'required|exists:trains,id',
+            'carriage_id' => 'required|exists:carriages,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        // Run transitions first to ensure state is current
+        $this->manageStreamTransitions();
+
+        $trainId = $request->input('train_id');
+        $carriageId = $request->input('carriage_id');
+
+        // Get now playing data
+        $nowPlayingResponse = $this->nowPlayingForLocation($trainId, $carriageId);
+        $nowPlayingData = $nowPlayingResponse->getData(true);
+
+        // Get voting data
+        $votingController = new VotingController();
+        $votingResponse = $votingController->getVotingForLocation($request);
+        $votingData = $votingResponse->getData(true);
+
+        return response()->json([
+            'now_playing' => $nowPlayingData,
+            'active_voting' => $votingData['voting'] ?? null,
+            'location_info' => $votingData['location'] ?? null,
+            'server_time' => now()->toIso8601String()
+        ]);
+    }
+
+    /**
+     * (HELPER) Get currently playing content for a specific train and carriage combination.
+     */
+    private function nowPlayingForLocation(int $trainId, int $carriageId)
+    {
+        $now = now();
+
+        // -- LOGIKA BARU: Mencari konten yang terhubung ke KEDUA relasi --
+        $content = Content::where('status', 'published')
+            ->where('is_live', true)
+            ->where('airing_time_start', '<=', $now)
+            ->where('airing_time_end', '>=', $now)
+            ->whereHas('trains', fn($query) => $query->where('trains.id', $trainId))
+            ->whereHas('carriages', fn($query) => $query->where('carriages.id', $carriageId))
+            ->first();
+
+        if (!$content) {
+            return response()->json([
+                'message' => "No content is currently airing for this train and carriage combination.",
+                'is_live' => false,
+                'server_time' => $now->toIso8601String(),
+                'next_content' => null
+            ], 200);
+        }
+
+        return response()->json([
+            'content' => [
+                'id' => $content->id,
+                'title' => $content->title,
+                'thumbnail' => url(Storage::url($content->thumbnail_path)),
+                'duration_seconds' => $content->duration_seconds,
+                'stream_url' => url("/api/stream/{$content->id}/playlist"),
+            ],
+            'sync_data' => [
+                'playback_position' => $now->diffInSeconds($content->airing_time_start),
+                'server_time' => $now->toIso8601String(),
+                'segment_duration' => 10
+            ],
+            'is_live' => true,
+        ]);
     }
 }

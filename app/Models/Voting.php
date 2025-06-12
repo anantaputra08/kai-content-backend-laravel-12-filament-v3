@@ -7,9 +7,10 @@ use Illuminate\Database\Eloquent\Model;
 class Voting extends Model
 {
     protected $fillable = [
+        'train_id',
         'carriages_id',
         'title',
-        'description', 
+        'description',
         'is_active',
         'start_time',
         'end_time'
@@ -28,6 +29,10 @@ class Voting extends Model
     {
         return $this->belongsTo(Carriages::class, 'carriages_id');
     }
+    public function train()
+    {
+        return $this->belongsTo(Train::class);
+    }
     public function options()
     {
         return $this->hasMany(VotingOption::class);
@@ -41,9 +46,9 @@ class Voting extends Model
     public function isActive(): bool
     {
         $now = now();
-        return $this->is_active && 
-               $this->start_time <= $now && 
-               $this->end_time >= $now;
+        return $this->is_active &&
+            $this->start_time <= $now &&
+            $this->end_time >= $now;
     }
 
     public function getTotalVotesAttribute(): int

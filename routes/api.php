@@ -12,6 +12,7 @@ use App\Http\Controllers\LikeDislikeController;
 use App\Http\Controllers\ReactionController;
 use App\Http\Controllers\ReviewContentController;
 use App\Http\Controllers\StreamController;
+use App\Http\Controllers\TrainController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VotingController;
 
@@ -125,42 +126,25 @@ Route::prefix('voting')->group(function () {
 // Stream routes
 Route::prefix('stream')->group(function () {
     // Mendapatkan status stream saat ini (live, next scheduled, voting info)
-    // Ini adalah endpoint utama yang akan dipanggil oleh aplikasi Android Anda secara periodik.
-    Route::get('/status/{carriage}', [StreamController::class, 'getStreamStatus']);
+    // Route::get('/status/{carriage}', [StreamController::class, 'getStreamStatus']);
+    Route::get('/status', [StreamController::class, 'getStatusForLocation']);
 
-    // Endpoint untuk mendapatkan konten yang sedang diputar (jika perlu terpisah dari status)
-    // Sebenarnya, 'status' sudah mencakup ini. Mungkin bisa dihapus jika redundan.
     Route::get('/now-playing', [StreamController::class, 'nowPlaying']);
 
-    // Endpoint untuk mendapatkan konten selanjutnya yang dijadwalkan
-    // Sebenarnya, 'status' sudah mencakup ini juga. Mungkin bisa dihapus jika redundan.
     Route::get('/next', [StreamController::class, 'getNextContent']);
 
-    // Route untuk serve playlist HLS
     Route::get('/{content}/playlist', [StreamController::class, 'playlist']);
 
-    // Ini adalah endpoint yang seharusnya dipanggil oleh **backend scheduler**
-    // (di dalam Kernel.php atau Jobs) BUKAN oleh frontend/client.
-    // Contoh: ketika konten yang divoting akan mulai diputar.
     Route::post('/{content}/start', [StreamController::class, 'startStream']);
 
-    // Ini juga adalah endpoint yang seharusnya dipanggil oleh **backend scheduler**
-    // ketika stream berakhir.
     Route::post('/{content}/stop', [StreamController::class, 'stopStream']);
 
-    // Mendapatkan data sinkronisasi stream (posisi playback dll.)
     Route::get('/{content}/sync', [StreamController::class, 'syncData']);
 
-    // Route ini sudah dihapus dari controller saya karena logicnya
-    // telah digabungkan ke dalam `manageStreamTransitions` di `Kernel.php`.
-    // Jangan letakkan ini di route yang bisa diakses publik.
-    // Route::post('/auto-start', [StreamController::class, 'autoStartVotedContent']);
-
-    // Ini adalah endpoint baru yang akan dipanggil oleh **backend scheduler**
-    // untuk mengelola transisi stream secara otomatis.
-    // Jangan letakkan ini di route yang bisa diakses publik.
     Route::post('/manage-transitions', [StreamController::class, 'manageStreamTransitions']);
 });
+
+Route::get('/trains', [TrainController::class, 'index']);
 
 Route::get('/contents/{content}/playlist.m3u8', [ContentController::class, 'getHlsPlaylist'])
     ->name('contents.hls.playlist');

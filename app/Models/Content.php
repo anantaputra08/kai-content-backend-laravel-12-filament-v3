@@ -57,4 +57,14 @@ class Content extends Model
     {
         return $this->belongsToMany(Carriages::class, 'carriages_contents');
     }
+
+    /**
+     * Define the many-to-many relationship with Train model.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
+     */
+    public function trains()
+    {
+        return $this->belongsToMany(Train::class, 'content_train');
+    }
 }

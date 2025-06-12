@@ -24,7 +24,7 @@ class ContentResource extends Resource
 
     protected static ?string $navigationGroup = 'Content Management';
 
-    protected static ?int $navigationSort = 3;
+    protected static ?int $navigationSort = 4;
 
     public static function form(Form $form): Form
     {
@@ -114,6 +114,13 @@ class ContentResource extends Resource
                     ])
                     ->default('pending')
                     ->required(),
+                Forms\Components\Select::make('trains')
+                    ->label('Trains')
+                    ->relationship('trains', 'name')
+                    ->multiple()
+                    ->preload()
+                    ->searchable()
+                    ->required(),
                 Forms\Components\Select::make('Carriages')
                     ->relationship('carriages', 'name')
                     ->multiple()
@@ -178,6 +185,11 @@ class ContentResource extends Resource
                         'rejected' => 'danger',
                     })
                     ->badge(),
+                Tables\Columns\TextColumn::make('trains_list')
+                    ->label('Trains')
+                    ->getStateUsing(fn($record) => $record->trains->pluck('name')->join(', '))
+                    ->wrap()
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('carriages_list')
                     ->label('Carriages')
                     ->getStateUsing(fn($record) => $record->carriages->pluck('name')->join(', '))

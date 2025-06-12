@@ -40,14 +40,9 @@ class DatabaseSeeder extends Seeder
         $this->call([
             CategorySeeder::class,
             CarriageSeeder::class,
+            TrainSeeder::class,
             ContentSeeder::class,
-        ]);
-
-        $this->call([
             CategoryComplaintSeeder::class,
-        ]);
-
-        $this->call([
             ComplaintSeeder::class,
         ]);
     }
