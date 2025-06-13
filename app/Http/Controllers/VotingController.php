@@ -180,7 +180,7 @@ class VotingController extends Controller
     /**
      * (HELPER) Create a new voting for a location with specific contents.
      */
-    private function createVotingForLocationInternal(
+    public function createVotingForLocationInternal(
         Train $train,
         Carriages $carriage,
         $contents,
