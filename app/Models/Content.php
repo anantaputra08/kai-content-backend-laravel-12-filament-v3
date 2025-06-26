@@ -67,4 +67,14 @@ class Content extends Model
     {
         return $this->belongsToMany(Train::class, 'content_train');
     }
+
+    /**
+     * Get the streams associated with the content.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function streams()
+    {
+        return $this->hasMany(Stream::class, 'content_id');
+    }
 }

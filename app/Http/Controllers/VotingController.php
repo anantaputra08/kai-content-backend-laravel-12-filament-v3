@@ -7,11 +7,13 @@ use App\Models\Voting;
 use App\Models\VotingOption;
 use App\Models\UserVote;
 use App\Models\Content;
+use App\Models\Stream;
 use App\Models\Train;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 
 class VotingController extends Controller
 {
@@ -22,31 +24,125 @@ class VotingController extends Controller
      * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\JsonResponse
      */
+    // public function getVotingForLocation(Request $request)
+    // {
+    //     // 1. Validasi: Keduanya wajib ada
+    //     $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+    //         'train_id' => 'required|exists:trains,id',
+    //         'carriage_id' => 'required|exists:carriages,id',
+    //     ]);
+
+    //     if ($validator->fails()) {
+    //         return response()->json(['message' => 'Both train_id and carriage_id are required.', 'errors' => $validator->errors()], 422);
+    //     }
+
+    //     $trainId = $request->input('train_id');
+    //     $carriageId = $request->input('carriage_id');
+
+    //     // -- LOGIKA BARU: Ambil konten yang terhubung ke KEDUA relasi --
+    //     $eligibleContents = Content::where('status', 'published')
+    //         ->whereHas('trains', fn($q) => $q->where('trains.id', $trainId))
+    //         ->whereHas('carriages', fn($q) => $q->where('carriages.id', $carriageId))
+    //         ->get();
+
+    //     $train = Train::findOrFail($trainId);
+    //     $carriage = Carriages::findOrFail($carriageId);
+
+    //     // 2. Cari voting yang aktif untuk kombinasi kereta dan gerbong
+    //     $activeVoting = Voting::with('options.content')
+    //         ->where('train_id', $trainId)
+    //         ->where('carriages_id', $carriageId)
+    //         ->where('is_active', true)
+    //         ->where('end_time', '>', now())
+    //         ->first();
+
+    //     // 3. Jika tidak ada voting aktif, buat yang baru (Logika diadaptasi dari getVotingForCarriage)
+    //     if (!$activeVoting) {
+
+    //         // Cek apakah ada konten yang sedang tayang (live) untuk kombinasi ini
+    //         $liveContent = Content::where('is_live', true)
+    //             ->whereHas('trains', fn($q) => $q->where('trains.id', $trainId))
+    //             ->whereHas('carriages', fn($q) => $q->where('carriages.id', $carriageId))
+    //             ->where('airing_time_end', '>', now())
+    //             ->first();
+
+    //         // Jika ada konten live, durasi voting = sisa waktu konten
+    //         if ($liveContent) {
+    //             $remainingSeconds = now()->diffInSeconds($liveContent->airing_time_end, false);
+
+    //             if ($eligibleContents->count() >= 2) {
+    //                 $newVoting = $this->createVotingForLocationInternal($train, $carriage, $eligibleContents, $remainingSeconds);
+    //                 if ($newVoting) {
+    //                     $activeVoting = $newVoting->load(['options.content']);
+    //                 }
+    //             }
+    //         }
+    //         // Jika tidak ada konten live, gunakan durasi default
+    //         else {
+    //             // Hanya buat voting jika ada setidaknya 2 konten yang bisa dipilih
+    //             if ($eligibleContents->count() >= 2) {
+    //                 // Gunakan durasi default karena tidak ada konten live
+    //                 $newVoting = $this->createVotingForLocationInternal($train, $carriage, $eligibleContents);
+    //                 if ($newVoting) {
+    //                     $activeVoting = $newVoting->load(['options.content']);
+    //                 }
+    //             }
+    //         }
+    //     }
+
+    //     $userIdentifier = $this->getUserIdentifier($request);
+    //     $hasVoted = $activeVoting ? UserVote::where('voting_id', $activeVoting->id)
+    //     ->where('user_identifier', $userIdentifier)
+    //     ->exists() : false;
+
+    //     return response()->json([
+    //         'location' => ['train_name' => $train->name, 'carriage_name' => $carriage->name],
+    //         'voting' => $this->formatVotingResponse($activeVoting, $hasVoted)
+    //     ]);
+    // }
     public function getVotingForLocation(Request $request)
     {
-        // 1. Validasi: Keduanya wajib ada
-        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+        $validator = Validator::make($request->all(), [
             'train_id' => 'required|exists:trains,id',
             'carriage_id' => 'required|exists:carriages,id',
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['message' => 'Both train_id and carriage_id are required.', 'errors' => $validator->errors()], 422);
+            return response()->json(['message' => 'Validation failed.', 'errors' => $validator->errors()], 422);
         }
 
         $trainId = $request->input('train_id');
         $carriageId = $request->input('carriage_id');
 
-        // -- LOGIKA BARU: Ambil konten yang terhubung ke KEDUA relasi --
-        $eligibleContents = Content::where('status', 'published')
-            ->whereHas('trains', fn($q) => $q->where('trains.id', $trainId))
-            ->whereHas('carriages', fn($q) => $q->where('carriages.id', $carriageId))
-            ->get();
-
         $train = Train::findOrFail($trainId);
         $carriage = Carriages::findOrFail($carriageId);
 
-        // 2. Cari voting yang aktif untuk kombinasi kereta dan gerbong
+        // --- KODE BARU DITAMBAHKAN DI SINI ---
+        // Periksa apakah perjalanan kereta sudah dimulai dan belum berakhir.
+        $now = now();
+
+        // Cek apakah ada waktu berangkat DAN sekarang masih sebelum waktu berangkat
+        if ($train->departure_time && $now->isBefore($train->departure_time)) {
+            Log::info("Voting access denied for Train {$train->id}. Reason: The journey has not started yet.");
+            return response()->json([
+                'location' => ['train_name' => $train->name, 'carriage_name' => $carriage->name],
+                'message' => 'The train journey has not started yet. Voting is not available.',
+                'voting' => null
+            ], 200); // Gunakan 200 OK karena ini adalah status, bukan error
+        }
+
+        // Cek apakah ada waktu tiba DAN sekarang sudah lewat waktu tiba
+        if ($train->arrival_time && $now->isAfter($train->arrival_time)) {
+            // dd("Voting access denied for Train {$train->id}. Reason: The journey has ended.");
+            Log::info("Voting access denied for Train {$train->id}. Reason: The journey has ended.");
+            return response()->json([
+                'location' => ['train_name' => $train->name, 'carriage_name' => $carriage->name],
+                'message' => 'The train journey has ended. Voting is no longer available.',
+                'voting' => null
+            ], 200); // Gunakan 200 OK
+        }
+        // --- AKHIR DARI KODE BARU ---
+
         $activeVoting = Voting::with('options.content')
             ->where('train_id', $trainId)
             ->where('carriages_id', $carriageId)
@@ -54,32 +150,37 @@ class VotingController extends Controller
             ->where('end_time', '>', now())
             ->first();
 
-        // 3. Jika tidak ada voting aktif, buat yang baru (Logika diadaptasi dari getVotingForCarriage)
+        // Blok ini hanya akan berjalan jika perjalanan kereta sedang berlangsung.
         if (!$activeVoting) {
-
-            // Cek apakah ada konten yang sedang tayang (live) untuk kombinasi ini
-            $liveContent = Content::where('is_live', true)
+            $eligibleContents = Content::where('status', 'published')
                 ->whereHas('trains', fn($q) => $q->where('trains.id', $trainId))
                 ->whereHas('carriages', fn($q) => $q->where('carriages.id', $carriageId))
-                ->where('airing_time_end', '>', now())
+                ->get();
+
+            if ($eligibleContents->count() < 2) {
+                Log::warning("Not enough eligible contents for Train {$train->id}, Carriage {$carriage->id}. Found: {$eligibleContents->count()}");
+                return response()->json([
+                    'location' => ['train_name' => $train->name, 'carriage_name' => $carriage->name],
+                    'message' => 'There are no contents available for voting in this carriage at the moment.',
+                    'voting' => null
+                ], 200);
+            }
+
+            $liveStream = Stream::where('train_id', $trainId)
+                ->where('carriage_id', $carriageId) // Sesuaikan nama kolom jika perlu
+                ->where('end_airing_time', '>', now())
                 ->first();
 
-            // Jika ada konten live, durasi voting = sisa waktu konten
-            if ($liveContent) {
-                $remainingSeconds = now()->diffInSeconds($liveContent->airing_time_end, false);
-                
-                if ($eligibleContents->count() >= 2) {
+            if ($liveStream) {
+                $remainingSeconds = now()->diffInSeconds($liveStream->end_airing_time, false);
+                if ($eligibleContents->count() >= 2 && $remainingSeconds > 30) {
                     $newVoting = $this->createVotingForLocationInternal($train, $carriage, $eligibleContents, $remainingSeconds);
                     if ($newVoting) {
                         $activeVoting = $newVoting->load(['options.content']);
                     }
                 }
-            }
-            // Jika tidak ada konten live, gunakan durasi default
-            else {
-                // Hanya buat voting jika ada setidaknya 2 konten yang bisa dipilih
+            } else {
                 if ($eligibleContents->count() >= 2) {
-                    // Gunakan durasi default karena tidak ada konten live
                     $newVoting = $this->createVotingForLocationInternal($train, $carriage, $eligibleContents);
                     if ($newVoting) {
                         $activeVoting = $newVoting->load(['options.content']);
@@ -90,14 +191,15 @@ class VotingController extends Controller
 
         $userIdentifier = $this->getUserIdentifier($request);
         $hasVoted = $activeVoting ? UserVote::where('voting_id', $activeVoting->id)
-        ->where('user_identifier', $userIdentifier)
-        ->exists() : false;
+            ->where('user_identifier', $userIdentifier)
+            ->exists() : false;
 
         return response()->json([
             'location' => ['train_name' => $train->name, 'carriage_name' => $carriage->name],
             'voting' => $this->formatVotingResponse($activeVoting, $hasVoted)
         ]);
     }
+
     /**
      * Get voting for a specific carriage.
      * This function checks if there is an active voting for the carriage.
@@ -180,6 +282,56 @@ class VotingController extends Controller
     /**
      * (HELPER) Create a new voting for a location with specific contents.
      */
+    // public function createVotingForLocationInternal(
+    //     Train $train,
+    //     Carriages $carriage,
+    //     $contents,
+    //     ?int $durationSeconds = null
+    // ) {
+    //     return DB::transaction(function () use ($train, $carriage, $contents, $durationSeconds) {
+    //         // Prevent duplicate active voting
+    //         if (
+    //             Voting::where('train_id', $train->id)
+    //                 ->where('carriages_id', $carriage->id)
+    //                 ->where('is_active', true)
+    //                 ->exists()
+    //         ) {
+    //             Log::warning("Active voting already exists for Train {$train->id}, Carriage {$carriage->id}");
+    //             return null;
+    //         }
+
+    //         $defaultDuration = 60; // seconds
+    //         $actualDuration = $durationSeconds ?? $defaultDuration;
+    //         $actualDuration = max($actualDuration, 30); // Minimum 30 seconds
+
+    //         $voting = Voting::create([
+    //             'train_id' => $train->id,
+    //             'carriages_id' => $carriage->id,
+    //             'title' => 'Vote for the next content!',
+    //             'description' => "Choose your favorite for Train: {$train->name}, Carriage: {$carriage->name}",
+    //             'is_active' => true,
+    //             'start_time' => now(),
+    //             'end_time' => now()->addSeconds($actualDuration)
+    //         ]);
+
+    //         // Select 2 random contents (or all if less than 2)
+    //         $selectedContents = $contents->count() > 2
+    //             ? $contents->random(2)
+    //             : $contents;
+
+    //         foreach ($selectedContents as $content) {
+    //             VotingOption::create([
+    //                 'voting_id' => $voting->id,
+    //                 'content_id' => $content->id
+    //             ]);
+    //         }
+
+    //         Log::info("Created voting ID: {$voting->id} for Train {$train->id}, Carriage {$carriage->id} with {$selectedContents->count()} options");
+
+    //         return $voting->load('options.content');
+    //     });
+    // }
+
     public function createVotingForLocationInternal(
         Train $train,
         Carriages $carriage,
@@ -188,10 +340,12 @@ class VotingController extends Controller
     ) {
         return DB::transaction(function () use ($train, $carriage, $contents, $durationSeconds) {
             // Prevent duplicate active voting
-            if (Voting::where('train_id', $train->id)
-                ->where('carriages_id', $carriage->id)
-                ->where('is_active', true)
-                ->exists()) {
+            if (
+                Voting::where('train_id', $train->id)
+                    ->where('carriages_id', $carriage->id)
+                    ->where('is_active', true)
+                    ->exists()
+            ) {
                 Log::warning("Active voting already exists for Train {$train->id}, Carriage {$carriage->id}");
                 return null;
             }
@@ -210,9 +364,8 @@ class VotingController extends Controller
                 'end_time' => now()->addSeconds($actualDuration)
             ]);
 
-            // Select 2 random contents (or all if less than 2)
-            $selectedContents = $contents->count() > 2 
-                ? $contents->random(2) 
+            $selectedContents = $contents->count() > 2
+                ? $contents->random(2)
                 : $contents;
 
             foreach ($selectedContents as $content) {
@@ -227,6 +380,7 @@ class VotingController extends Controller
             return $voting->load('options.content');
         });
     }
+
     /**
      * (HELPER) Create a new voting for a carriage.
      * This function is used internally to create a voting for a carriage.
@@ -363,6 +517,39 @@ class VotingController extends Controller
      * Ends voting, determines a winner, and IMMEDIATELY starts the winner's stream.
      * Called by the system scheduler via StreamController.
      */
+    // public function endVotingAndStartWinner($votingId)
+    // {
+    //     return DB::transaction(function () use ($votingId) {
+    //         $voting = Voting::with(['options.content'])
+    //             ->lockForUpdate()
+    //             ->findOrFail($votingId);
+
+    //         if (!$voting->is_active) {
+    //             Log::info("Voting {$votingId} already ended");
+    //             return null;
+    //         }
+
+    //         $voting->update(['is_active' => false]);
+
+    //         // Determine winner (random if no votes)
+    //         $winnerOption = $voting->options()
+    //             ->orderByDesc('vote_count')
+    //             ->first();
+
+    //         if (!$winnerOption || $winnerOption->vote_count === 0) {
+    //             $winnerOption = $voting->options()->inRandomOrder()->first();
+    //             Log::warning("No votes in voting {$votingId}, randomly selected: {$winnerOption->content->title}");
+    //         }
+
+    //         // Start stream
+    //         $streamController = new StreamController();
+    //         $streamResponse = $streamController->startStream($winnerOption->content);
+
+    //         Log::info("Started stream for voting {$votingId} winner: {$winnerOption->content->title}");
+
+    //         return $streamResponse;
+    //     });
+    // }
     public function endVotingAndStartWinner($votingId)
     {
         return DB::transaction(function () use ($votingId) {
@@ -377,21 +564,32 @@ class VotingController extends Controller
 
             $voting->update(['is_active' => false]);
 
-            // Determine winner (random if no votes)
-            $winnerOption = $voting->options()
-                ->orderByDesc('vote_count')
-                ->first();
-
+            $winnerOption = $voting->options()->orderByDesc('vote_count')->first();
             if (!$winnerOption || $winnerOption->vote_count === 0) {
                 $winnerOption = $voting->options()->inRandomOrder()->first();
                 Log::warning("No votes in voting {$votingId}, randomly selected: {$winnerOption->content->title}");
             }
 
-            // Start stream
+            // --- PERUBAHAN KRITIS ---
             $streamController = new StreamController();
-            $streamResponse = $streamController->startStream($winnerOption->content);
 
-            Log::info("Started stream for voting {$votingId} winner: {$winnerOption->content->title}");
+            // Ambil train_id dan carriages_id dari voting yang berakhir
+            $trainId = $voting->train_id;
+            $carriageId = $voting->carriages_id;
+
+            if (!$trainId || !$carriageId) {
+                Log::error("Voting {$votingId} does not have train_id or carriages_id, cannot start stream.");
+                return response()->json(['message' => 'Voting location data is missing.'], 500);
+            }
+
+            // Panggil startStream dengan parameter yang lengkap
+            $streamResponse = $streamController->startStream(
+                $winnerOption->content,
+                $trainId,
+                $carriageId
+            );
+
+            Log::info("Started stream for voting {$votingId} winner: '{$winnerOption->content->title}' on Train {$trainId}, Carriage {$carriageId}");
 
             return $streamResponse;
         });

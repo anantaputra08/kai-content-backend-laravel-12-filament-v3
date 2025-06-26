@@ -9,4 +9,9 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateCarriages extends CreateRecord
 {
     protected static string $resource = CarriagesResource::class;
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
 }

@@ -34,4 +34,12 @@ class Carriages extends Model
     {
         return $this->hasOne(Voting::class, 'carriages_id')->where('is_active', true);
     }
+
+    /**
+     * Mendapatkan sesi streaming yang terkait dengan carriage ini.
+     */
+    public function streams()
+    {
+        return $this->hasMany(Stream::class, 'carriage_id');
+    }
 }

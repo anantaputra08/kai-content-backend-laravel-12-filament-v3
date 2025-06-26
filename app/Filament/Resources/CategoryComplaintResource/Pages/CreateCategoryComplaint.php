@@ -9,4 +9,9 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateCategoryComplaint extends CreateRecord
 {
     protected static string $resource = CategoryComplaintResource::class;
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
 }

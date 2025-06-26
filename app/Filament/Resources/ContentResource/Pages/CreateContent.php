@@ -18,4 +18,9 @@ class CreateContent extends CreateRecord
 
         ProcessStream::dispatch($content);
     }
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
 }

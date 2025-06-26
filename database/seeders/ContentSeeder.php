@@ -93,14 +93,14 @@ class ContentSeeder extends Seeder
         if ($carriageA && $carriageB && $carriageC) {
             $content1->carriages()->attach([$carriageA->id, $carriageB->id]);
             $content2->carriages()->attach([$carriageB->id, $carriageC->id]);
-            $content3->carriages()->attach([$carriageC->id, $carriageA->id]);
+            $content3->carriages()->attach([$carriageC->id, $carriageA->id, $carriageB->id]);
         }
 
         // Relasikan konten dengan kereta
         if ($trainArgoBromo && $trainArgoLawu && $trainTaksaka) {
             $content1->trains()->attach([$trainArgoBromo->id]);
             $content2->trains()->attach([$trainArgoLawu->id, $trainTaksaka->id]);
-            $content3->trains()->attach([$trainTaksaka->id]);
+            $content3->trains()->attach([$trainArgoLawu->id, $trainTaksaka->id]);
         }
     }
 }

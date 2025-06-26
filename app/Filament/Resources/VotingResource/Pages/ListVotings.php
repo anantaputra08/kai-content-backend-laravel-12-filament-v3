@@ -36,4 +36,8 @@ class ListVotings extends ListRecords
                     ->orWhere('end_time', '<=', Carbon::now())),
         ];
     }
+    public function getDefaultActiveTab(): ?string
+    {
+        return 'active'; // ID tab yang ingin dijadikan default
+    }
 }

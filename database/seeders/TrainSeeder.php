@@ -14,7 +14,8 @@ class TrainSeeder extends Seeder
     public function run(): void
     {
         Train::create(['name' => 'Argo Bromo Anggrek', 'route' => 'Gambir - Surabaya Pasarturi']);
-        Train::create(['name' => 'Argo Lawu', 'route' => 'Gambir - Solo Balapan']);
-        Train::create(['name' => 'Taksaka', 'route' => 'Gambir - Yogyakarta']);
+        Train::create(['name' => 'Argo Lawu', 'route' => 'Gambir - Solo Balapan', 'departure_time' => '2025-06-26 18:00:00', 'arrival_time' => '2025-06-26 21:30:00']);
+        Train::create(['name' => 'Taksaka', 'route' => 'Gambir - Yogyakarta', 'departure_time' => '2025-06-26 20:00:00', 'arrival_time' => '2025-06-26 23:50:00']);
+        // Train::create(['name' => 'Taksaka', 'route' => 'Gambir - Yogyakarta']);
     }
 }

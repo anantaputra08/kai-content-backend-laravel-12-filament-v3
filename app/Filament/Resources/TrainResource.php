@@ -30,6 +30,14 @@ class TrainResource extends Resource
                 Forms\Components\TextInput::make('route')
                     ->required()
                     ->maxLength(255),
+                Forms\Components\DateTimePicker::make('departure_time')
+                    ->label('Departure Time')
+                    ->required()
+                    ->default(now()),
+                Forms\Components\DateTimePicker::make('arrival_time')
+                    ->label('Arrival Time')
+                    ->required()
+                    ->default(now()->addHours(3)),
             ]);
     }
 
@@ -41,6 +49,12 @@ class TrainResource extends Resource
                     ->searchable(),
                 Tables\Columns\TextColumn::make('route')
                     ->searchable(),
+                Tables\Columns\TextColumn::make('departure_time')
+                    ->dateTime()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('arrival_time')
+                    ->dateTime()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()

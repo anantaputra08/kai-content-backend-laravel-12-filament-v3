@@ -28,4 +28,9 @@ class EditContent extends EditRecord
             ProcessStream::dispatch($content);
         }
     }
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
 }

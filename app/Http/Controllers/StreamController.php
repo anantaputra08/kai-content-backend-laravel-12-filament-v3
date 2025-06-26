@@ -6,6 +6,7 @@ use App\Jobs\ProcessStream;
 use App\Jobs\StopStream;
 use App\Models\Carriages;
 use App\Models\Content;
+use App\Models\Stream;
 use App\Models\Train;
 use App\Models\UserVote;
 use App\Models\Voting;
@@ -16,6 +17,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 class StreamController extends Controller
 {
@@ -107,53 +109,105 @@ class StreamController extends Controller
      * This function should be called by an automated process (e.g., scheduler)
      * after a voting period ends or for a scheduled content.
      */
-    public function startStream(Content $content)
+    // public function startStream(Content $content)
+    // {
+    //     // Validate content can be streamed
+    //     // Assuming 'file_path' stores the path to the original video file
+    //     if (!Storage::exists($content->file_path)) {
+    //         return response()->json([
+    //             'message' => 'Video file not found for processing',
+    //             'errors' => ['file' => ['The video file does not exist at ' . $content->file_path]]
+    //         ], 422);
+    //     }
+
+    //     // Set airing_time_start and airing_time_end based on content duration
+    //     // Assuming Content model has a 'duration_seconds' field
+    //     if (!$content->duration_seconds) {
+    //         // You might want to calculate duration here or fail if not available
+    //         return response()->json([
+    //             'message' => 'Content duration is not set. Cannot start stream.',
+    //             'errors' => ['duration' => ['Content duration_seconds is required']]
+    //         ], 422);
+    //     }
+
+    //     $startTime = now();
+    //     $endTime = $startTime->copy()->addSeconds($content->duration_seconds);
+
+    //     Content::where('is_live', true)->update(['is_live' => false]);
+
+    //     // Update content status to live
+    //     $content->update([
+    //         'is_live' => true,
+    //         'stream_key' => Str::random(32),
+    //         'stream_url' => url("/api/stream/{$content->id}/playlist"),
+    //         'airing_time_start' => $startTime,
+    //         'airing_time_end' => $endTime
+    //     ]);
+
+    //     // ProcessStream::dispatch($content);
+    //     // Log::info("Successfully started stream for '{$content->title}' (ID: {$content->id}).");
+
+    //     return response()->json([
+    //         'message' => 'Virtual live stream started',
+    //         'stream_url' => $content->stream_url,
+    //         'schedule' => [
+    //             'start' => $startTime->toIso8601String(),
+    //             'end' => $endTime->toIso8601String()
+    //         ]
+    //     ]);
+    // }
+    public function startStream(Content $content, int $trainId, int $carriageId)
     {
-        // Validate content can be streamed
-        // Assuming 'file_path' stores the path to the original video file
-        if (!Storage::exists($content->file_path)) {
-            return response()->json([
-                'message' => 'Video file not found for processing',
-                'errors' => ['file' => ['The video file does not exist at ' . $content->file_path]]
-            ], 422);
+        // Validasi file video tetap relevan
+        if (!Storage::disk('public')->exists($content->file_path)) {
+            Log::error("Video file not found for content ID: {$content->id}");
+            return response()->json(['message' => 'Video file not found.'], 422);
         }
 
-        // Set airing_time_start and airing_time_end based on content duration
-        // Assuming Content model has a 'duration_seconds' field
         if (!$content->duration_seconds) {
-            // You might want to calculate duration here or fail if not available
-            return response()->json([
-                'message' => 'Content duration is not set. Cannot start stream.',
-                'errors' => ['duration' => ['Content duration_seconds is required']]
-            ], 422);
+            Log::error("Content duration is not set for content ID: {$content->id}");
+            return response()->json(['message' => 'Content duration is not set.'], 422);
         }
 
-        $startTime = now();
-        $endTime = $startTime->copy()->addSeconds($content->duration_seconds);
+        // --- LOGIKA BARU ---
+        // Alih-alih mengupdate flag 'is_live', kita membuat record baru di tabel 'streams'.
+        // Ini memastikan tidak ada stream lain yang aktif di lokasi yang sama.
+        DB::transaction(function () use ($content, $trainId, $carriageId) {
+            // Hentikan (secara logis) stream lain yang mungkin masih berjalan di lokasi yang sama
+            // dengan mengatur end_time-nya ke sekarang. Ini untuk mencegah tumpang tindih.
+            Stream::where('train_id', $trainId)
+                ->where('carriage_id', $carriageId)
+                ->where('end_airing_time', '>', now())
+                ->update(['end_airing_time' => now()]);
 
-        Content::where('is_live', true)->update(['is_live' => false]);
+            // Buat stream baru
+            $startTime = now();
+            $endTime = $startTime->copy()->addSeconds($content->duration_seconds);
 
-        // Update content status to live
-        $content->update([
-            'is_live' => true,
-            'stream_key' => Str::random(32),
-            'stream_url' => url("/api/stream/{$content->id}/playlist"),
-            'airing_time_start' => $startTime,
-            'airing_time_end' => $endTime
-        ]);
+            $stream = Stream::create([
+                'content_id' => $content->id,
+                'train_id' => $trainId,
+                'carriage_id' => $carriageId,
+                'start_airing_time' => $startTime,
+                'end_airing_time' => $endTime,
+            ]);
 
-        // ProcessStream::dispatch($content);
-        // Log::info("Successfully started stream for '{$content->title}' (ID: {$content->id}).");
+            // Dispatch job untuk proses FFMPEG (jika ada) tetap bisa dilakukan di sini
+            // ProcessStream::dispatch($content);
+
+            Log::info("Successfully created stream record for '{$content->title}' (Content ID: {$content->id}) on Train: {$trainId}, Carriage: {$carriageId}");
+        });
 
         return response()->json([
             'message' => 'Virtual live stream started',
-            'stream_url' => $content->stream_url,
+            'stream_url' => url("/api/stream/{$content->id}/playlist"),
             'schedule' => [
-                'start' => $startTime->toIso8601String(),
-                'end' => $endTime->toIso8601String()
+                'start' => now()->toIso8601String(),
+                'end' => now()->addSeconds($content->duration_seconds)->toIso8601String()
             ]
         ]);
     }
+
 
     /**
      * Stop the stream.
@@ -211,28 +265,67 @@ class StreamController extends Controller
      * Manages the overall stream lifecycle.
      * This method should be run by a scheduler (e.g., every minute).
      */
+    // public function manageStreamTransitions()
+    // {
+    //     $now = now();
+    //     Log::info("Running manageStreamTransitions at {$now}");
+
+    //     DB::transaction(function () use ($now) {
+    //         // Lock relevant rows to prevent race conditions
+    //         $finishedStream = Content::where('is_live', true)
+    //             ->where('airing_time_end', '<=', $now)
+    //             ->lockForUpdate()
+    //             ->first();
+
+    //         if ($finishedStream) {
+    //             Log::info("Stream '{$finishedStream->title}' has ended. Stopping it.");
+    //             $this->stopStream($finishedStream);
+
+    //             // Create new voting only after stream is fully stopped
+    //             $this->createNewVotingAfterStream($finishedStream);
+    //             return;
+    //         }
+
+    //         // Check for finished votings with proper locking
+    //         $finishedVoting = Voting::where('is_active', true)
+    //             ->where('end_time', '<=', $now)
+    //             ->lockForUpdate()
+    //             ->first();
+
+    //         if ($finishedVoting) {
+    //             Log::info("Processing finished voting ID: {$finishedVoting->id}");
+    //             $votingController = new VotingController();
+    //             $votingController->endVotingAndStartWinner($finishedVoting->id);
+    //             return;
+    //         }
+    //     });
+
+    //     Log::info("No transitions needed at {$now}");
+    // }
     public function manageStreamTransitions()
     {
         $now = now();
         Log::info("Running manageStreamTransitions at {$now}");
 
         DB::transaction(function () use ($now) {
-            // Lock relevant rows to prevent race conditions
-            $finishedStream = Content::where('is_live', true)
-                ->where('airing_time_end', '<=', $now)
+            // --- LOGIKA BARU ---
+            // 1. Cari stream yang sudah selesai waktunya.
+            $finishedStreams = Stream::where('end_airing_time', '<=', $now)
+                ->whereNull('processed_after_finish') // Tandai agar tidak diproses berulang kali
                 ->lockForUpdate()
-                ->first();
+                ->get();
 
-            if ($finishedStream) {
-                Log::info("Stream '{$finishedStream->title}' has ended. Stopping it.");
-                $this->stopStream($finishedStream);
-                
-                // Create new voting only after stream is fully stopped
+            foreach ($finishedStreams as $finishedStream) {
+                Log::info("Stream for content '{$finishedStream->content->title}' has ended. Creating new voting.");
+
+                // Panggil method untuk membuat voting baru
                 $this->createNewVotingAfterStream($finishedStream);
-                return;
+
+                // Tandai bahwa stream ini sudah diproses
+                $finishedStream->update(['processed_after_finish' => true]); // Anda perlu menambahkan kolom ini di migrasi
             }
 
-            // Check for finished votings with proper locking
+            // 2. Cari voting yang sudah selesai waktunya untuk memulai stream baru.
             $finishedVoting = Voting::where('is_active', true)
                 ->where('end_time', '<=', $now)
                 ->lockForUpdate()
@@ -241,21 +334,49 @@ class StreamController extends Controller
             if ($finishedVoting) {
                 Log::info("Processing finished voting ID: {$finishedVoting->id}");
                 $votingController = new VotingController();
+                // Method ini perlu diubah untuk memanggil startStream dengan parameter yang benar
                 $votingController->endVotingAndStartWinner($finishedVoting->id);
-                return;
             }
         });
 
         Log::info("No transitions needed at {$now}");
     }
 
-    private function createNewVotingAfterStream(Content $finishedContent)
-    {
-        $trainId = $finishedContent->trains()->first()->id;
-        $carriageId = $finishedContent->carriages()->first()->id;
+    // private function createNewVotingAfterStream(Content $finishedContent)
+    // {
+    //     $trainId = $finishedContent->trains()->first()->id;
+    //     $carriageId = $finishedContent->carriages()->first()->id;
 
+    //     $eligibleContents = Content::where('status', 'published')
+    //         ->where('id', '!=', $finishedContent->id) // Exclude just finished content
+    //         ->whereHas('trains', fn($q) => $q->where('trains.id', $trainId))
+    //         ->whereHas('carriages', fn($q) => $q->where('carriages.id', $carriageId))
+    //         ->get();
+
+    //     if ($eligibleContents->count() >= 2) {
+    //         $train = Train::find($trainId);
+    //         $carriage = Carriages::find($carriageId);
+
+    //         $votingController = new VotingController();
+    //         $votingController->createVotingForLocationInternal(
+    //             $train,
+    //             $carriage,
+    //             $eligibleContents,
+    //             $finishedContent->duration_seconds // Use same duration as finished content
+    //         );
+    //     } else {
+    //         Log::warning("Not enough eligible contents (need 2, found {$eligibleContents->count()}) for new voting");
+    //     }
+    // }
+    private function createNewVotingAfterStream(Stream $finishedStream)
+    {
+        $trainId = $finishedStream->train_id;
+        $carriageId = $finishedStream->carriage_id;
+        $finishedContentId = $finishedStream->content_id;
+
+        // Cari konten yang memenuhi syarat untuk lokasi yang sama
         $eligibleContents = Content::where('status', 'published')
-            ->where('id', '!=', $finishedContent->id) // Exclude just finished content
+            ->where('id', '!=', $finishedContentId)
             ->whereHas('trains', fn($q) => $q->where('trains.id', $trainId))
             ->whereHas('carriages', fn($q) => $q->where('carriages.id', $carriageId))
             ->get();
@@ -263,16 +384,16 @@ class StreamController extends Controller
         if ($eligibleContents->count() >= 2) {
             $train = Train::find($trainId);
             $carriage = Carriages::find($carriageId);
-            
+
             $votingController = new VotingController();
             $votingController->createVotingForLocationInternal(
                 $train,
                 $carriage,
                 $eligibleContents,
-                $finishedContent->duration_seconds // Use same duration as finished content
+                $finishedStream->content->duration_seconds // Gunakan durasi konten yang baru selesai
             );
         } else {
-            Log::warning("Not enough eligible contents (need 2, found {$eligibleContents->count()}) for new voting");
+            Log::warning("Not enough eligible contents (need at least 2) for new voting on Train {$trainId}, Carriage {$carriageId}.");
         }
     }
 
@@ -319,21 +440,54 @@ class StreamController extends Controller
      * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\JsonResponse
      */
+    // public function getStatusForLocation(Request $request)
+    // {
+    //     $validator = validator($request->all(), [
+    //         'train_id' => 'required|exists:trains,id',
+    //         'carriage_id' => 'required|exists:carriages,id',
+    //     ]);
+
+    //     if ($validator->fails()) {
+    //         return response()->json([
+    //             'message' => 'Validation failed',
+    //             'errors' => $validator->errors()
+    //         ], 422);
+    //     }
+
+    //     // Run transitions first to ensure state is current
+    //     $this->manageStreamTransitions();
+
+    //     $trainId = $request->input('train_id');
+    //     $carriageId = $request->input('carriage_id');
+
+    //     // Get now playing data
+    //     $nowPlayingResponse = $this->nowPlayingForLocation($trainId, $carriageId);
+    //     $nowPlayingData = $nowPlayingResponse->getData(true);
+
+    //     // Get voting data
+    //     $votingController = new VotingController();
+    //     $votingResponse = $votingController->getVotingForLocation($request);
+    //     $votingData = $votingResponse->getData(true);
+
+    //     return response()->json([
+    //         'now_playing' => $nowPlayingData,
+    //         'active_voting' => $votingData['voting'] ?? null,
+    //         'location_info' => $votingData['location'] ?? null,
+    //         'server_time' => now()->toIso8601String()
+    //     ]);
+    // }
     public function getStatusForLocation(Request $request)
     {
-        $validator = validator($request->all(), [
+        $validator = Validator::make($request->all(), [
             'train_id' => 'required|exists:trains,id',
             'carriage_id' => 'required|exists:carriages,id',
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()
-            ], 422);
+            return response()->json(['message' => 'Validation failed', 'errors' => $validator->errors()], 422);
         }
 
-        // Run transitions first to ensure state is current
+        // Menjalankan transisi untuk memastikan state selalu terbaru
         $this->manageStreamTransitions();
 
         $trainId = $request->input('train_id');
@@ -348,6 +502,18 @@ class StreamController extends Controller
         $votingResponse = $votingController->getVotingForLocation($request);
         $votingData = $votingResponse->getData(true);
 
+        // Cek apakah ada pesan status khusus dari VotingController
+        if (isset($votingData['message'])) {
+            // Jika ada, bangun respons akhir dengan menyertakan pesan tersebut
+            return response()->json([
+                'now_playing' => $nowPlayingData,
+                'active_voting' => null, // Pastikan voting null karena tidak relevan
+                'location_info' => $votingData['location'] ?? null,
+                'message' => $votingData['message'], // <-- Sertakan pesan dari VotingController
+                'server_time' => now()->toIso8601String()
+            ]);
+        }
+
         return response()->json([
             'now_playing' => $nowPlayingData,
             'active_voting' => $votingData['voting'] ?? null,
@@ -359,27 +525,65 @@ class StreamController extends Controller
     /**
      * (HELPER) Get currently playing content for a specific train and carriage combination.
      */
+    // private function nowPlayingForLocation(int $trainId, int $carriageId)
+    // {
+    //     $now = now();
+
+    //     // -- LOGIKA BARU: Mencari konten yang terhubung ke KEDUA relasi --
+    //     $content = Content::where('status', 'published')
+    //         ->where('is_live', true)
+    //         ->where('airing_time_start', '<=', $now)
+    //         ->where('airing_time_end', '>=', $now)
+    //         ->whereHas('trains', fn($query) => $query->where('trains.id', $trainId))
+    //         ->whereHas('carriages', fn($query) => $query->where('carriages.id', $carriageId))
+    //         ->first();
+
+    //     if (!$content) {
+    //         return response()->json([
+    //             'message' => "No content is currently airing for this train and carriage combination.",
+    //             'is_live' => false,
+    //             'server_time' => $now->toIso8601String(),
+    //             'next_content' => null
+    //         ], 200);
+    //     }
+
+    //     return response()->json([
+    //         'content' => [
+    //             'id' => $content->id,
+    //             'title' => $content->title,
+    //             'thumbnail' => url(Storage::url($content->thumbnail_path)),
+    //             'duration_seconds' => $content->duration_seconds,
+    //             'stream_url' => url("/api/stream/{$content->id}/playlist"),
+    //         ],
+    //         'sync_data' => [
+    //             'playback_position' => $now->diffInSeconds($content->airing_time_start),
+    //             'server_time' => $now->toIso8601String(),
+    //             'segment_duration' => 10
+    //         ],
+    //         'is_live' => true,
+    //     ]);
+    // }
     private function nowPlayingForLocation(int $trainId, int $carriageId)
     {
         $now = now();
 
-        // -- LOGIKA BARU: Mencari konten yang terhubung ke KEDUA relasi --
-        $content = Content::where('status', 'published')
-            ->where('is_live', true)
-            ->where('airing_time_start', '<=', $now)
-            ->where('airing_time_end', '>=', $now)
-            ->whereHas('trains', fn($query) => $query->where('trains.id', $trainId))
-            ->whereHas('carriages', fn($query) => $query->where('carriages.id', $carriageId))
+        // --- LOGIKA BARU ---
+        $activeStream = Stream::where('train_id', $trainId)
+            ->where('carriage_id', $carriageId)
+            ->where('start_airing_time', '<=', $now)
+            ->where('end_airing_time', '>=', $now)
+            ->with('content')
             ->first();
 
-        if (!$content) {
+        if (!$activeStream || !$activeStream->content) {
             return response()->json([
                 'message' => "No content is currently airing for this train and carriage combination.",
                 'is_live' => false,
                 'server_time' => $now->toIso8601String(),
-                'next_content' => null
             ], 200);
         }
+
+        $content = $activeStream->content;
 
         return response()->json([
             'content' => [
@@ -390,7 +594,7 @@ class StreamController extends Controller
                 'stream_url' => url("/api/stream/{$content->id}/playlist"),
             ],
             'sync_data' => [
-                'playback_position' => $now->diffInSeconds($content->airing_time_start),
+                'playback_position' => $now->diffInSeconds($activeStream->start_airing_time),
                 'server_time' => $now->toIso8601String(),
                 'segment_duration' => 10
             ],

@@ -15,6 +15,8 @@ return new class extends Migration
             $table->id();
             $table->string('name'); // Contoh: Argo Bromo Anggrek
             $table->string('route'); // Contoh: Gambir - Surabaya Pasarturi
+            $table->timestamp('departure_time')->nullable(); // Waktu keberangkatan
+            $table->timestamp('arrival_time')->nullable(); // Waktu kedatangan
             $table->timestamps();
         });
     }

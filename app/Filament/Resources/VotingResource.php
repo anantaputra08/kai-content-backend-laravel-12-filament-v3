@@ -74,7 +74,7 @@ class VotingResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('title')
                     ->searchable(),
-                
+
                 // Kolom gabungan untuk menampilkan lokasi (Kereta atau Gerbong)
                 Tables\Columns\TextColumn::make('location')
                     ->label('Location')
@@ -88,23 +88,25 @@ class VotingResource extends Resource
                         return 'N/A';
                     })
                     ->searchable(query: function (Builder $query, string $search): Builder {
-                        return $query->whereHas('train', fn ($q) => $q->where('name', 'like', "%{$search}%"))
-                                     ->orWhereHas('carriage', fn ($q) => $q->where('name', 'like', "%{$search}%"));
+                        return $query->whereHas('train', fn($q) => $q->where('name', 'like', "%{$search}%"))
+                            ->orWhereHas('carriage', fn($q) => $q->where('name', 'like', "%{$search}%"));
                     }),
 
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Status')
                     ->boolean()
                     ->getStateUsing(function (Voting $record): bool {
-                        if (!$record->is_active) return false;
-                        if ($record->end_time && Carbon::parse($record->end_time)->isPast()) return false;
+                        if (!$record->is_active)
+                            return false;
+                        if ($record->end_time && Carbon::parse($record->end_time)->isPast())
+                            return false;
                         return true;
                     })
                     ->trueIcon('heroicon-o-check-circle')
                     ->falseIcon('heroicon-o-x-circle')
                     ->trueColor('success')
                     ->falseColor('danger'),
-                
+
                 Tables\Columns\TextColumn::make('total_votes')
                     ->label('Total Votes')
                     ->getStateUsing(function (Voting $record) {
@@ -116,25 +118,25 @@ class VotingResource extends Resource
                             ->withSum('options as total_votes_sum', 'vote_count')
                             ->orderBy('total_votes_sum', $direction);
                     }),
-                
+
                 Tables\Columns\TextColumn::make('top_content')
                     ->label('Top Content (Votes)')
                     ->getStateUsing(function (Voting $record) {
                         $topOption = $record->options()
-                                            ->orderBy('vote_count', 'desc')
-                                            ->first();
+                            ->orderBy('vote_count', 'desc')
+                            ->first();
 
                         if (!$topOption || $topOption->vote_count === 0) {
                             return 'Belum ada suara';
                         }
-                        
+
                         $contentTitle = $topOption->content->title ?? 'N/A';
                         $voteCount = $topOption->vote_count;
 
                         return "{$contentTitle} ({$voteCount})";
                     })
                     ->wrap(),
-                    
+
                 Tables\Columns\TextColumn::make('start_time')
                     ->dateTime()
                     ->sortable(),
@@ -149,6 +151,7 @@ class VotingResource extends Resource
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->defaultSort('created_at', 'desc')
             ->filters([
                 //
             ])
@@ -169,7 +172,7 @@ class VotingResource extends Resource
             //
         ];
     }
-    
+
     public static function getPages(): array
     {
         return [

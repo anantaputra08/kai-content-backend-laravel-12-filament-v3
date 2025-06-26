@@ -126,26 +126,6 @@ class ContentResource extends Resource
                     ->multiple()
                     ->preload()
                     ->required(),
-                Forms\Components\TimePicker::make('airing_time_start')
-                    ->label('Airing Time Start')
-                    ->withoutSeconds()
-                    ->format('H:i')
-                    ->required()
-                    ->default(now()),
-                Forms\Components\TimePicker::make('airing_time_end')
-                    ->label('Airing Time End')
-                    ->withoutSeconds()
-                    ->required()
-                    ->default(now()->addHours(2)),
-                // Forms\Components\TextInput::make('view_count')
-                //     ->numeric()
-                //     ->default(0),
-                // Forms\Components\TextInput::make('total_watch_time')
-                //     ->numeric()
-                //     ->default(0),
-                Forms\Components\TextInput::make('rank')
-                    ->numeric()
-                    ->default(0),
             ]);
     }
 
@@ -194,20 +174,11 @@ class ContentResource extends Resource
                     ->label('Carriages')
                     ->getStateUsing(fn($record) => $record->carriages->pluck('name')->join(', '))
                     ->wrap(),
-                Tables\Columns\TextColumn::make('airing_time_start')
-                    ->label('Airing Time Start')
-                    ->Time('H:i'),
-                Tables\Columns\TextColumn::make('airing_time_end')
-                    ->label('Airing Time End')
-                    ->Time('H:i'),
                 Tables\Columns\TextColumn::make('view_count')
                     ->numeric()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('total_watch_time')
                     ->suffix(' s')
-                    ->numeric()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('rank')
                     ->numeric()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('created_at')
