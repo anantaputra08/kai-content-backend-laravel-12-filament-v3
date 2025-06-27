@@ -12,6 +12,7 @@ class Stream extends Model
         'carriage_id',
         'start_airing_time',
         'end_airing_time',
+        'processed_after_finish',
     ];
 
     /**
