@@ -50,10 +50,10 @@ class TrainResource extends Resource
                 Tables\Columns\TextColumn::make('route')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('departure_time')
-                    ->dateTime()
+                    ->Time()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('arrival_time')
-                    ->dateTime()
+                    ->Time()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()

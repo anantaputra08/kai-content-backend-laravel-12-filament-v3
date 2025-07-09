@@ -9,6 +9,7 @@ use App\Models\UserVote;
 use App\Models\Content;
 use App\Models\Stream;
 use App\Models\Train;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -117,31 +118,48 @@ class VotingController extends Controller
         $train = Train::findOrFail($trainId);
         $carriage = Carriages::findOrFail($carriageId);
 
-        // --- KODE BARU DITAMBAHKAN DI SINI ---
         // Periksa apakah perjalanan kereta sudah dimulai dan belum berakhir.
         $now = now();
 
         // Cek apakah ada waktu berangkat DAN sekarang masih sebelum waktu berangkat
-        if ($train->departure_time && $now->isBefore($train->departure_time)) {
-            Log::info("Voting access denied for Train {$train->id}. Reason: The journey has not started yet.");
-            return response()->json([
-                'location' => ['train_name' => $train->name, 'carriage_name' => $carriage->name],
-                'message' => 'The train journey has not started yet. Voting is not available.',
-                'voting' => null
-            ], 200); // Gunakan 200 OK karena ini adalah status, bukan error
-        }
+        if ($train->departure_time && $train->arrival_time) {
+            // Buat objek Carbon untuk hari ini dari string waktu (misal '08:00:00')
+            $departure = Carbon::parse($train->departure_time);
+            $arrival = Carbon::parse($train->arrival_time);
 
-        // Cek apakah ada waktu tiba DAN sekarang sudah lewat waktu tiba
-        if ($train->arrival_time && $now->isAfter($train->arrival_time)) {
-            // dd("Voting access denied for Train {$train->id}. Reason: The journey has ended.");
-            Log::info("Voting access denied for Train {$train->id}. Reason: The journey has ended.");
-            return response()->json([
-                'location' => ['train_name' => $train->name, 'carriage_name' => $carriage->name],
-                'message' => 'The train journey has ended. Voting is no longer available.',
-                'voting' => null
-            ], 200); // Gunakan 200 OK
+            // Cerdas menangani perjalanan yang melewati tengah malam (misal: berangkat 22:00, tiba 05:00)
+            // Jika waktu tiba lebih awal dari waktu berangkat, artinya perjalanan berakhir keesokan harinya.
+            if ($arrival->isBefore($departure)) {
+                // Jika waktu saat ini adalah antara tengah malam dan waktu tiba,
+                // artinya keberangkatan terjadi kemarin.
+                if ($now->isBetween(Carbon::today(), $arrival)) {
+                    $departure->subDay();
+                } else {
+                    // Jika tidak, artinya kedatangan adalah besok.
+                    $arrival->addDay();
+                }
+            }
+
+            // Cek #1: Apakah perjalanan belum dimulai?
+            if ($now->isBefore($departure)) {
+                Log::info("Voting access denied for Train {$train->id}. Reason: The daily journey has not started yet.");
+                return response()->json([
+                    'location' => ['train_name' => $train->name, 'carriage_name' => $carriage->name],
+                    'message' => 'The train journey has not started yet. Voting is not available.',
+                    'voting' => null
+                ], 200);
+            }
+
+            // Cek #2: Apakah perjalanan sudah berakhir?
+            if ($now->isAfter($arrival)) {
+                Log::info("Voting access denied for Train {$train->id}. Reason: The daily journey has ended.");
+                return response()->json([
+                    'location' => ['train_name' => $train->name, 'carriage_name' => $carriage->name],
+                    'message' => 'The train journey has ended. Voting is no longer available.',
+                    'voting' => null
+                ], 200);
+            }
         }
-        // --- AKHIR DARI KODE BARU ---
 
         $activeVoting = Voting::with('options.content')
             ->where('train_id', $trainId)
