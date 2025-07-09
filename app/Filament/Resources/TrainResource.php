@@ -30,11 +30,11 @@ class TrainResource extends Resource
                 Forms\Components\TextInput::make('route')
                     ->required()
                     ->maxLength(255),
-                Forms\Components\DateTimePicker::make('departure_time')
+                Forms\Components\TimePicker::make('departure_time')
                     ->label('Departure Time')
                     ->required()
                     ->default(now()),
-                Forms\Components\DateTimePicker::make('arrival_time')
+                Forms\Components\TimePicker::make('arrival_time')
                     ->label('Arrival Time')
                     ->required()
                     ->default(now()->addHours(3)),
