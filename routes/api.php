@@ -56,7 +56,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('contents/details/{id}', [ContentController::class, 'getContentDetails']);
     Route::apiResource('contents', ContentController::class);
     Route::get('/contents/{content}/playlist.m3u8', [ContentController::class, 'getHlsPlaylist'])
-    ->name('contents.hls.playlist');
+        ->name('contents.hls.playlist');
 
     Route::get('feedbacks/check', [FeedbackController::class, 'checkUserFeedback']);
     Route::apiResource('feedbacks', FeedbackController::class);
@@ -83,7 +83,7 @@ Route::middleware('auth:sanctum')->group(function () {
 //     Route::post('/vote', [VotingController::class, 'submitVote']);
 //     Route::get('/{voting}/results', [VotingController::class, 'getResults']);
 //     Route::get('/{voting}/winner', [VotingController::class, 'getWinnerAndSchedule']);
-    
+
 //     // Admin routes (bisa ditambah middleware auth)
 //     Route::post('/create', [VotingController::class, 'createVoting']);
 // });
@@ -94,54 +94,48 @@ Route::middleware('auth:sanctum')->group(function () {
 //     Route::get('/next', [StreamController::class, 'getNextContent']);
 //     Route::get('/status', [StreamController::class, 'getStreamStatus']);
 //     Route::post('/auto-start', [StreamController::class, 'autoStartVotedContent']);
-    
+
 //     Route::get('/{content}/playlist', [StreamController::class, 'playlist']);
 //     Route::post('/{content}/start', [StreamController::class, 'startStream']);
 //     Route::post('/{content}/stop', [StreamController::class, 'stopStream']);
 //     Route::get('/{content}/sync', [StreamController::class, 'syncData']);
 // });
-// Voting routes
-Route::prefix('voting')->group(function () {
-    // Mendapatkan voting aktif (untuk ditampilkan di client)
-    // Route::get('/active', [VotingController::class, 'getActiveVoting']);
-    Route::get('/carriages/{carriageId}/voting', [VotingController::class, 'getVotingForCarriage']);
 
-    // Mengirim vote (untuk user)
-    Route::post('/vote', [VotingController::class, 'submitVote']);
+Route::middleware('auth:sanctum')->group(function () {
+    // Voting routes
+    Route::prefix('voting')->group(function () {
+        // Mendapatkan voting aktif (untuk ditampilkan di client)
+        // Route::get('/active', [VotingController::class, 'getActiveVoting']);
+        Route::get('/carriages/{carriageId}/voting', [VotingController::class, 'getVotingForCarriage']);
 
-    // Mendapatkan hasil voting untuk voting spesifik (mungkin setelah berakhir)
-    Route::get('/{voting}/results', [VotingController::class, 'getResults']);
+        // Mengirim vote (untuk user)
+        Route::post('/vote', [VotingController::class, 'submitVote']);
 
-    // Ini adalah endpoint yang seharusnya dipanggil oleh **backend scheduler**
-    // BUKAN oleh frontend/client secara langsung.
-    // Frontend tidak perlu tahu tentang logic penjadwalan pemenang.
-    // Jika Anda tetap ingin ini bisa diakses, pertimbangkan middleware otentikasi admin yang ketat.
-    Route::post('/{voting}/end-and-schedule-winner', [VotingController::class, 'endVotingAndScheduleWinner']);
+        // Mendapatkan hasil voting untuk voting spesifik (mungkin setelah berakhir)
+        Route::get('/{voting}/results', [VotingController::class, 'getResults']);
 
-    // Admin route untuk membuat voting baru
-    // Harusnya dilindungi dengan middleware otentikasi admin
-    Route::post('/create', [VotingController::class, 'createVoting']);
-});
+        // Ini adalah endpoint yang seharusnya dipanggil oleh **backend scheduler**
+        // BUKAN oleh frontend/client secara langsung.
+        // Frontend tidak perlu tahu tentang logic penjadwalan pemenang.
+        // Jika Anda tetap ingin ini bisa diakses, pertimbangkan middleware otentikasi admin yang ketat.
+        Route::post('/{voting}/end-and-schedule-winner', [VotingController::class, 'endVotingAndScheduleWinner']);
 
-// Stream routes
-Route::prefix('stream')->group(function () {
-    // Mendapatkan status stream saat ini (live, next scheduled, voting info)
-    // Route::get('/status/{carriage}', [StreamController::class, 'getStreamStatus']);
-    Route::get('/status', [StreamController::class, 'getStatusForLocation']);
+        // Admin route untuk membuat voting baru
+        // Harusnya dilindungi dengan middleware otentikasi admin
+        Route::post('/create', [VotingController::class, 'createVoting']);
+    });
 
-    Route::get('/now-playing', [StreamController::class, 'nowPlaying']);
-
-    Route::get('/next', [StreamController::class, 'getNextContent']);
-
-    Route::get('/{content}/playlist', [StreamController::class, 'playlist']);
-
-    Route::post('/{content}/start', [StreamController::class, 'startStream']);
-
-    Route::post('/{content}/stop', [StreamController::class, 'stopStream']);
-
-    Route::get('/{content}/sync', [StreamController::class, 'syncData']);
-
-    Route::post('/manage-transitions', [StreamController::class, 'manageStreamTransitions']);
+    // Stream routes
+    Route::prefix('stream')->group(function () {
+        Route::get('/status', [StreamController::class, 'getStatusForLocation']);
+        Route::get('/now-playing', [StreamController::class, 'nowPlaying']);
+        Route::get('/next', [StreamController::class, 'getNextContent']);
+        Route::get('/{content}/playlist', [StreamController::class, 'playlist']);
+        Route::post('/{content}/start', [StreamController::class, 'startStream']);
+        Route::post('/{content}/stop', [StreamController::class, 'stopStream']);
+        Route::get('/{content}/sync', [StreamController::class, 'syncData']);
+        Route::post('/manage-transitions', [StreamController::class, 'manageStreamTransitions']);
+    });
 });
 
 Route::get('/trains', [TrainController::class, 'index']);
@@ -151,11 +145,11 @@ Route::get('/contents/{content}/playlist.m3u8', [ContentController::class, 'getH
 
 Route::get('/stream/test-now-playing', [StreamController::class, 'testNowPlaying']);
 
-Route::get('/test-ffmpeg', function() {
+Route::get('/test-ffmpeg', function () {
     $ffmpeg = env('FFMPEG_PATH');
     $command = "$ffmpeg -version";
     exec($command, $output, $return);
-    
+
     return [
         'path' => $ffmpeg,
         'output' => $output,

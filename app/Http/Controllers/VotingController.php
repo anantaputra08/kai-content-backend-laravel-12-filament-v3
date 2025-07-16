@@ -920,6 +920,11 @@ class VotingController extends Controller
      */
     private function getUserIdentifier(Request $request): string
     {
-        return $request->ip();
+        $user = auth()->user();
+
+        if ($user) {
+            return $user->id; // Use user ID if authenticated
+        }
+        return $request->ip(); // Fallback to IP address if not authenticated
     }
 }
